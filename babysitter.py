@@ -380,8 +380,9 @@ def main():
     signal.signal(signal.SIGINT,  _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
-    # Wrap this in try... except so we can send any unexpected exceptions
-    # to logging
+    # Wrap manager.run() in a "try... except" block so we
+    # can gracefully catch KeyboardInterrupt exceptions or we
+    # can send any unexpected exceptions to logger.
     try:
         manager = Manager()
         manager.load_config("babysitter_config.xml")    

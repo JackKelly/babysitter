@@ -14,7 +14,10 @@
     </disk_space>
 
     <!-- ********************** FILES ***************************
-    Add as many <file> blocks as required.                        -->
+    Add as many <file> blocks as required.
+    Each block checks that its file is updated within <timeout>.
+    This is useful for checking that data log files are being updated
+    as expected. -->
     
     <file>
         <location></location>

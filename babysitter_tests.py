@@ -46,7 +46,10 @@ class TestLoadConfig(unittest.TestCase):
     def test_disk_space(self):
         xml = """
         <config>
-            <disk_space_threshold>20</disk_space_threshold>            
+            <disk_space>
+                <threshold>20</threshold>
+                <mount_point>/</mount_point>
+            </disk_space>            
         </config>
         """
         self._load_config(xml)
@@ -68,6 +71,5 @@ class TestLoadConfig(unittest.TestCase):
         self.assertEqual(self.manager.EMAIL_TO, 'another@email.address')
 
 
-        
 if __name__ == '__main__':
     unittest.main()
