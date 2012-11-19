@@ -1,0 +1,45 @@
+<config>
+
+    <!-- ********************** EMAIL *************************** -->
+    <smtp_server></smtp_server>
+    <email_from></email_from>
+    <email_to></email_to>
+    <username></username>
+    <password></password>
+
+    <!-- ******************* DISK SPACE ************************* -->
+    <disk_space>
+        <threshold>20</threshold>   <!-- MBytes -->
+        <mount_point></mount_point>
+    </disk_space>
+
+    <!-- ********************** FILES ***************************
+    Add as many <file> blocks as required.                        -->
+    
+    <file>
+        <location></location>
+        <timeout>300</timeout> <!-- Seconds -->
+    </file>
+
+    <!-- ********************* PROCESSES ************************
+    Add as many <process> blocks are required.
+    The <name> must be the precise name of the process.
+    The <restart_command> is optional.                            -->
+    
+    <process>
+        <name>iam_logger.py</name>
+        <restart_command>nohup ./iam_logger.py</restart_command>
+    </process>
+    
+    <process>
+        <name>ntpd</name>
+        <restart_command>sudo service ntp restart</restart_command>
+    </process>
+
+    <!-- *************** CHECK IF A FILE GROWS ******************
+    FILEGROWS can be used to keep tabs on error log files.
+    If the file grows then state == FAIL. -->
+    
+    <filegrows>cron.log</filegrows>
+
+</config>

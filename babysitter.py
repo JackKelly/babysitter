@@ -11,59 +11,18 @@ from abc import ABCMeta, abstractproperty
 import xml.etree.ElementTree as ET # for XML parsing
 import signal
 
-# TODO: email end of cron.log
-
-# TODO: send messages in HTML. Use RED for FAILs.  Use <ul> for lists.
-
 """
 ***********************************
 ********* DESCRIPTION *************
     
     Script for monitoring disk space, multiple files and multiple processes.
     If errors are found then an email is sent.
-    Configuration is stored in a babysitter_config.xml file (see below)
+    Configuration is stored in a babysitter_config.xml file.
+    Copy babysitter_config.example.xml to babysitter_config.xml and edit.
      
 
 ***********************************
-********* REQUIREMENTS ************
-
-    ---------------------------------
-    ADD A babysitter_config.xml FILE
-    USING THE FOLLOWING FORMAT:
-    
-    Add as many <process> or <file>
-    elements as you want to check.
-    --------------------------------
-
-        <config>
-        
-            <smtp_server></smtp_server>
-            <email_from></email_from>
-            <email_to></email_to>
-            <username></username>
-            <password></password>
-            
-            <disk_space_threshold>20</disk_space_threshold> <!-- MBytes -->
-            
-            <file>
-                <location></location>
-                <timeout>300</timeout> <!-- Seconds -->
-            </file>
-        
-            <process>
-                <name>iam_logger.py</name>
-                <restart_command>nohup ./iam_logger.py</restart_command>
-            </process>
-        
-            <process>
-                <name>ntpd</name>
-                <restart_command>sudo service ntp restart</restart_command>
-            </process>
-            
-            <filegrows>cron.log</filegrows>
-            
-        </config>
-    
+********* REQUIREMENTS ************ 
     
     ----------------------------------
     SETUP SUDO FOR service restart ntp
@@ -104,7 +63,7 @@ class Checker:
     
     @property
     def just_changed_state(self):
-        state = self.state # cache to avoid this changing under us        
+        state = self.state # cache to avoid probs if this changes under us        
         if state == self.last_state:
             return False
         elif state == Checker.FAIL:
@@ -200,20 +159,23 @@ class File(Checker):
 
 class FileGrows(Checker):
     def __init__(self, name):
-        """FileGrows constructor
+        """FileGrows constructor. If a file grows (such an an error log file)
+        then state goes to FAIL.
         
         Args:
             name (str) : including full path
-            timeout (int or str) : time in seconds after which this file is 
-                considered overdue.
         """
         self.name = name
-        self.initial_size = self.size
+        self.last_size = self.size
         super(FileGrows, self).__init__(name)
 
     @property
     def state(self):
-        return self.size == self.initial_size
+        if self.size == self.last_size:
+            return Checker.OK
+        else:
+            self.last_size = self.size
+            return Checker.FAIL 
     
     @property        
     def size(self):
@@ -294,6 +256,7 @@ class Manager(object):
     def load_config(self, config_file):
         config_tree = ET.parse(config_file)
 
+        # Email config
         self.SMTP_SERVER = config_tree.findtext("smtp_server")
         self.EMAIL_FROM  = config_tree.findtext("email_from")
         self.EMAIL_TO    = config_tree.findtext("email_to")
