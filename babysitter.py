@@ -25,6 +25,9 @@ import signal
 ********* REQUIREMENTS ************ 
     
     ----------------------------------
+    If you want to be able to re-start the Network Time Protocol Daemon
+    if it fails then follow these steps:
+    
     SETUP SUDO FOR service restart ntp
     ----------------------------------
         
@@ -38,16 +41,15 @@ import signal
 
 """
 
+# Define some constants for tracking state
+FAIL = 0
+OK   = 1
 
 class Checker:
     """Abstract base class (ABC) for classes which check on the state of
     a particular part of the system. """    
     
     __metaclass__ = ABCMeta
-
-    # Define some constants for tracking state
-    FAIL = 0
-    OK = 1
 
     def __init__(self, name):
         self.name = name
@@ -66,9 +68,9 @@ class Checker:
         state = self.state # cache to avoid probs if this changes under us        
         if state == self.last_state:
             return False
-        elif state == Checker.FAIL:
+        elif state == FAIL:
             logger.warning('state change to FAIL: {}'.format(self))            
-        elif state == Checker.OK:
+        elif state == OK:
             logger.info('state change: {}'.format(self))
         
         self.last_state = state
@@ -106,7 +108,7 @@ class Process(Checker):
             logger.info("No restart string for {}".format(self.name))
             return
         
-        if self.state == Checker.OK:
+        if self.state == OK:
             return
         
         logger.info("Attempting to restart {}".format(self.name))
@@ -122,9 +124,9 @@ class Process(Checker):
         try:
             self.pid
         except subprocess.CalledProcessError:
-            return Checker.FAIL
+            return FAIL
         else:
-            return Checker.OK
+            return OK
 
 
 class File(Checker):
@@ -172,10 +174,10 @@ class FileGrows(Checker):
     @property
     def state(self):
         if self.size == self.last_size:
-            return Checker.OK
+            return OK
         else:
             self.last_size = self.size
-            return Checker.FAIL 
+            return FAIL 
     
     @property        
     def size(self):
@@ -241,7 +243,7 @@ class Manager(object):
                 if checker.just_changed_state:
                     msg += "STATE CHANGED:\n"
                     msg += str(checker) + "\n"
-                    if isinstance(checker, Process):
+                    if isinstance(checker, Process) and checker.state == FAIL:
                         msg += "Attempting to restart...\n"
                         checker.restart()
                         time.sleep(5)
@@ -294,6 +296,10 @@ class Manager(object):
         
 
     def send_email(self, body, subject):
+        if not self.SMTP_SERVER:
+            logger.info("Not sending email because no SMTP server configured")
+            return
+        
         hostname = os.uname()[1]
         me = hostname + '<' + self.EMAIL_FROM + '>'
         body += '\nUnixtime = ' + str(time.time()) + '\n'       
@@ -310,7 +316,7 @@ class Manager(object):
                 logger.debug("SMPT_SSL")
                 s = smtplib.SMTP_SSL(self.SMTP_SERVER)
                 logger.debug("logging in")
-                s.login(self.USERNAME, self.PASSWORD) # TODO take these from config!
+                s.login(self.USERNAME, self.PASSWORD)
                 
                 logger.debug("sendmail")                
                 s.sendmail(me, [self.EMAIL_TO], msg.as_string())
