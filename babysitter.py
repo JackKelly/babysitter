@@ -2,6 +2,7 @@
 
 from __future__ import print_function, division
 import time
+import datetime
 import logging
 import subprocess
 import os
@@ -77,7 +78,7 @@ class Checker:
         return True
     
     def __str__(self):
-        return '{} = {}'.format(self.name.rpartition('/')[2], # remove path
+        return '{}={}'.format(self.name.rpartition('/')[2], # remove path
                                 self.state_as_str)
     
 
@@ -203,6 +204,8 @@ class DiskSpaceRemaining(Checker):
         """
         self.threshold = int(threshold)
         self.path = path
+        self.initial_space_remaining = self.available_space
+        self.initial_time = datetime.datetime.now()
         super(DiskSpaceRemaining, self).__init__('disk space')
         
     @property
@@ -214,11 +217,31 @@ class DiskSpaceRemaining(Checker):
         """Returns available disk space in MBytes."""
         # From http://stackoverflow.com/a/787832/732596
         s = os.statvfs(self.path)
-        return (s.f_bavail * s.f_frsize) / 1024**2      
+        return (s.f_bavail * s.f_frsize) / 1024**2
+    
+    @property
+    def space_decay_rate(self):
+        """Returns rate at which space is diminishing in MByte per second.
+        -ve denotes decreasing disk space."""
+        dt = (datetime.datetime.now() - self.initial_time).total_seconds() # delta t
+        ds = self.available_space - self.initial_space_remaining # delta space
+        return ds / dt
+    
+    @property
+    def time_until_full(self):
+        """Returns time delta object for time until disk is full."""
+        secs_until_full = -self.space_decay_rate * self.available_space
+        return datetime.timedelta(seconds=secs_until_full)
     
     def __str__(self):
         msg = super(DiskSpaceRemaining, self).__str__()
-        msg += ", remaining={:.0f} MB.".format(self.available_space)
+        msg += ", remaining={:.0f} MB".format(self.available_space)
+        msg += (", time until full={:d}days {:d}:{:d}"
+                .format(self.time_until_full.days,
+                        self.time_until_full.seconds // 3600, 
+                        self.time_until_full.seconds //   60))
+        msg += ", full on {}".format((datetime.datetime.now() + self.time_until_full)
+                                     .strftime("%d/%m/%y %H:%M"))
         return msg    
 
 

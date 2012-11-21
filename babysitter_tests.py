@@ -1,6 +1,8 @@
+from __future__ import print_function
 import babysitter
 import unittest
 import StringIO
+import datetime
 
 class TestLoadConfig(unittest.TestCase):
     
@@ -25,7 +27,7 @@ class TestLoadConfig(unittest.TestCase):
         self.assertIsInstance(self.manager._checkers[0], babysitter.File)
         self.assertEqual(self.manager._checkers[0].name, '/tmp')
         self.assertEqual(self.manager._checkers[0].timeout, 1000000)
-        self.assertTrue(self.manager._checkers[0].state == babysitter.Checker.OK)        
+        self.assertTrue(self.manager._checkers[0].state == babysitter.OK)        
 
     def test_process(self):
         xml = """
@@ -41,7 +43,7 @@ class TestLoadConfig(unittest.TestCase):
         self.assertEqual(self.manager._checkers[0].name, 'init')
         self.assertEqual(self.manager._checkers[0].restart_command,
                          'sudo service init restart')
-        self.assertTrue(self.manager._checkers[0].state == babysitter.Checker.OK)
+        self.assertTrue(self.manager._checkers[0].state == babysitter.OK)
 
     def test_disk_space(self):
         xml = """
@@ -55,7 +57,27 @@ class TestLoadConfig(unittest.TestCase):
         self._load_config(xml)
         self.assertIsInstance(self.manager._checkers[0], babysitter.DiskSpaceRemaining)        
         self.assertEqual(self.manager._checkers[0].threshold, 20)
-        self.assertTrue(self.manager._checkers[0].state == babysitter.Checker.OK)
+        self.assertEqual(self.manager._checkers[0].path, "/")
+        self.assertTrue(self.manager._checkers[0].state == babysitter.OK)
+        
+    def test_time_until_full(self):
+        xml = """
+        <config>
+            <disk_space>
+                <threshold>20</threshold>
+                <mount_point>/</mount_point>
+            </disk_space>            
+        </config>
+        """
+        self._load_config(xml)
+        
+        # Fake parameters so it looks like we're using 0.1MB per second
+        self.manager._checkers[0].initial_space_remaining = self.manager._checkers[0].available_space + 0.1
+        self.manager._checkers[0].initial_time = datetime.datetime.now() - datetime.timedelta(seconds=1)
+        self.assertAlmostEqual(self.manager._checkers[0].space_decay_rate, -0.1, 1)
+        
+        print(self.manager._checkers[0])
+                
 
     def test_email_config(self):
         xml = """
