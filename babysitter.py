@@ -236,12 +236,14 @@ class DiskSpaceRemaining(Checker):
     def __str__(self):
         msg = super(DiskSpaceRemaining, self).__str__()
         msg += ", remaining={:.0f} MB".format(self.available_space)
-        msg += (", time until full={:d}days {:d}:{:d}"
-                .format(self.time_until_full.days,
-                        self.time_until_full.seconds // 3600, 
-                        self.time_until_full.seconds //   60))
-        msg += ", full on {}".format((datetime.datetime.now() + self.time_until_full)
-                                     .strftime("%d/%m/%y %H:%M"))
+        
+        if (datetime.datetime.now() - self.initial_time).total_seconds() > 1:
+            msg += (", time until full={:d}days {:d}hrs {:d}mins"
+                    .format(self.time_until_full.days,
+                            self.time_until_full.seconds // 3600, 
+                            self.time_until_full.seconds //   60))
+            msg += ", full on {}".format((datetime.datetime.now() + self.time_until_full)
+                                         .strftime("%d/%m/%y %H:%M"))
         return msg    
 
 
