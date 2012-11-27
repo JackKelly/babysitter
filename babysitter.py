@@ -8,9 +8,11 @@ import subprocess
 import os
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from abc import ABCMeta, abstractproperty
 import xml.etree.ElementTree as ET # for XML parsing
 import signal
+import re
 
 """
 ***********************************
@@ -46,6 +48,8 @@ import signal
 FAIL = 0
 OK   = 1
 
+UPDATE_PERIOD = 10 # seconds
+
 class Checker:
     """Abstract base class (ABC) for classes which check on the state of
     a particular part of the system. """    
@@ -62,7 +66,12 @@ class Checker:
     
     @property
     def state_as_str(self):
-        return ['FAIL', 'OK'][self.state]
+        return html_to_text(self.state_as_html)
+    
+    @property
+    def state_as_html(self):
+        return ['<span style=\"color:red\">FAIL</span>',
+                '<span style=\"color:green\">OK</span>'][self.state]
     
     @property
     def just_changed_state(self):
@@ -77,10 +86,17 @@ class Checker:
         self.last_state = state
         return True
     
-    def __str__(self):
-        return '{}={}'.format(self.name.rpartition('/')[2], # remove path
-                                self.state_as_str)
+    def extra_text(self):
+        return ""
     
+    def __str__(self):
+        return html_to_text(self.html())
+
+    def html(self):
+        return '{}={}{}'.format(self.name.rpartition('/')[2], # remove path
+                                self.state_as_html,
+                                self.extra_text())
+
 
 class Process(Checker):
     """Class for monitoring a unix process.
@@ -114,11 +130,14 @@ class Process(Checker):
         
         logger.info("Attempting to restart {}".format(self.name))
         try:
-            subprocess.Popen(self.restart_command.split())
+            p=subprocess.Popen(self.restart_command.split(), stderr=subprocess.PIPE)
         except Exception:
             logger.exception("Failed to restart. {}".format(self))
         else:
-            logger.info("Successfully restarted. {}".format(self) )
+            if p.poll(): # process has already terminated
+                logger.warn("Process {} has terminated already. stderr={}".format(self, p.stderr.read()))
+            else:
+                logger.info("Successfully restarted. {}".format(self) )
 
     @property
     def state(self):
@@ -154,9 +173,8 @@ class File(Checker):
     def last_modified(self):
         return os.path.getmtime(self.name)
     
-    def __str__(self):
-        msg = super(File, self).__str__()
-        msg += ", last modified {:.1f}s ago.".format(self.seconds_since_modified)
+    def extra_text(self):
+        msg = ", last modified {:.1f}s ago.".format(self.seconds_since_modified)
         return msg
 
 
@@ -188,9 +206,8 @@ class FileGrows(Checker):
             s = 0
         return s 
     
-    def __str__(self):
-        msg = super(FileGrows, self).__str__()
-        msg += ", size {} bytes.".format(self.size)
+    def extra_text(self):
+        msg = ", size {} bytes.".format(self.size)
         return msg
 
 
@@ -233,11 +250,11 @@ class DiskSpaceRemaining(Checker):
         secs_until_full = -self.space_decay_rate * self.available_space
         return datetime.timedelta(seconds=secs_until_full)
     
-    def __str__(self):
-        msg = super(DiskSpaceRemaining, self).__str__()
-        msg += ", remaining={:.0f} MB".format(self.available_space)
+    def extra_text(self):
+        msg = ", remaining={:.0f} MB".format(self.available_space)
         
-        if (datetime.datetime.now() - self.initial_time).total_seconds() > 1:
+        if ((datetime.datetime.now() - self.initial_time).total_seconds() > 1
+            and self.space_decay_rate < 0):
             msg += (", time until full={:d}days {:d}hrs {:d}mins"
                     .format(self.time_until_full.days,
                             self.time_until_full.seconds // 3600, 
@@ -247,11 +264,45 @@ class DiskSpaceRemaining(Checker):
         return msg    
 
 
+def html_to_text(html):
+    # Remove all unwanted white space
+    html = re.sub(r'^( )*', '', html, flags=re.MULTILINE)
+    html = re.sub(r'( )*$', '', html, flags=re.MULTILINE)
+    html = html.replace("\n", "")
+    
+    # Add desired white space
+    html = html.replace("</p>", "\n")
+    html = html.replace("</li>", "\n") 
+    html = html.replace("</tr>", "\n")   
+    html = html.replace("</th>", " ")  
+    html = html.replace("</td>", " ")  
+    html = re.sub(r"</h[0-9]>", "\n", html)
+    
+    # Replace basic formatting
+    html = html.replace("<li>", "* ")
+    html = html.replace("<em>", "*")
+    html = html.replace("</em>", "*")
+    html = html.replace("<b>", "**")
+    html = html.replace("<b>", "**")
+    html = html.replace("<h1>", "# ")
+    html = html.replace("<h2>", "## ")
+    html = html.replace("<h3>", "### ")
+    html = html.replace("<h4>", "#### ")
+    html = html.replace("<h5>", "##### ")
+    html = html.replace("<h6>", "###### ")
+  
+    # use regex to remove any other HTML tags
+    html = re.sub("""</?[a-zA-Z0-9( =:"!.)]*/?>""", "", html)
+    
+    return html
+
+    
 class Manager(object):
     """Manages multiple Checker objects."""
     
     def __init__(self):
         self._checkers = []
+        self._heartbeat = {}
         
     def append(self, checker):
         self._checkers.append(checker)
@@ -259,26 +310,64 @@ class Manager(object):
                                                      self._checkers[-1]))
         
     def run(self):
-        msg = "IAM logger babysitter running.\n{}".format(self)
-        self.send_email(body=msg, subject="babysitter.py running")
+        self._send_heartbeat()
         
-        while True:
-            msg = ""
+        while True:       
+            html = ""
             for checker in self._checkers:
                 if checker.just_changed_state:
-                    msg += "STATE CHANGED:\n"
-                    msg += str(checker) + "\n"
+                    html += "<h2>STATE CHANGED:</h2>\n"
+                    html += "<p>" + checker.html() + "</p>\n"
                     if isinstance(checker, Process) and checker.state == FAIL:
-                        msg += "Attempting to restart...\n"
+                        html += "<p>Attempting to restart...</p>\n"
                         checker.restart()
                         time.sleep(5)
-                        msg += str(checker) + "\n"
+                        html += "<p>" + checker.html() + "</p>\n"
                             
-            if msg != "":
-                msg += "CURRENT STATE OF ALL CHECKERS:\n" + str(self)
-                self.send_email(body=msg, subject="iam_logger errors.")
+            if html:
+                html += "<h2>CURRENT STATE OF ALL CHECKERS:</h2>\n" + self.html()
+                self.send_email_with_time(html=html, subject="babysitter errors.")
     
-            time.sleep(10)
+            if self._need_to_send_heartbeat():
+                self._send_heartbeat()
+    
+            time.sleep(UPDATE_PERIOD)
+    
+    def _need_to_send_heartbeat(self):
+        if not self._heartbeat:
+            return False
+        
+        now_hour = datetime.datetime.now().hour
+        need_to_send = (now_hour == self._heartbeat['hour'] and
+                self._heartbeat['last_checked'] != self._heartbeat['hour'])
+        self._heartbeat['last_checked'] = now_hour
+        return need_to_send
+    
+    def _send_heartbeat(self):
+        msg = None
+        if self._heartbeat.get('cmd'):
+            logger.info("Attempting to run heartbeat command {}"
+                        .format(self._heartbeat['cmd']))
+            try:
+                p=subprocess.Popen(self._heartbeat['cmd'].split(), stderr=subprocess.PIPE)
+                p.wait()
+            except Exception:
+                msg = "<p><span style=\"color:red\">Failed to run {}</span></p>\n".format(self._heartbeat['cmd'])
+                logger.exception(html_to_text(msg))
+            else:
+                if p.returncode == 0:
+                    msg = "<p>Successfully ran {}</p>\n".format(self._heartbeat['cmd'])
+                    logger.info(html_to_text(msg))
+                else:
+                    msg = "<p><span style=\"color:red\">Failed to run {}<br/>\n".format(self._heartbeat['cmd'])
+                    msg += "stderr: {}</span></p>\n".format(p.stderr.read())
+                    logger.warn(html_to_text(msg))
+
+        msg = self.html() + msg
+
+        self._email_html_file(subject='Babysitter heartbeat', 
+                              filename=self._heartbeat.get('html_file'),
+                              extra_text=msg)
             
     def load_config(self, config_file):
         config_tree = ET.parse(config_file)
@@ -319,19 +408,48 @@ class Manager(object):
             if f.text is not None:
                 self.append(FileGrows(f.text))
         
+        # Load heartbeat
+        heartbeat_etree = config_tree.find("heartbeat")
+        if heartbeat_etree is not None:
+            self._heartbeat['hour'] = int(heartbeat_etree.findtext("hour"))
+            self._heartbeat['cmd'] = heartbeat_etree.findtext("cmd")
+            self._heartbeat['html_file'] = heartbeat_etree.findtext("html_file")
+            self._heartbeat['last_checked'] = datetime.datetime.now().hour
+        
+    def _email_html_file(self, subject, filename, extra_text=None):
+        if filename:
+            try:
+                html_file = open(filename, 'r')
+                html = html_file.read()
+            except:
+                logger.warn("Failed to open filename {}".format(filename))
+                extra_text += "<p><span style=\"color:red\">Failed to open filename {}</span></p>".format(filename)
+        
+        if extra_text:
+            html = html.replace("<body>", "<body>\n{}".format(extra_text))
+        
+        self.send_email(subject, html)
+        
+    def send_email_with_time(self, subject, html):
+        html += '<p>Unixtime = {}</p>\n'.format(time.time())       
+        html = "<html>\n<head></head>\n<body>" + html + "</body>\n</html>\n"
+        self.send_email(subject, html)        
 
-    def send_email(self, body, subject):
+    def send_email(self, subject, html):
         if not self.SMTP_SERVER:
             logger.info("Not sending email because no SMTP server configured")
             return
-        
+                
         hostname = os.uname()[1]
         me = hostname + '<' + self.EMAIL_FROM + '>'
-        body += '\nUnixtime = ' + str(time.time()) + '\n'       
-        msg = MIMEText(body)
+        
+        msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
         msg['From'] =  me
         msg['To'] = self.EMAIL_TO
+        
+        msg.attach(MIMEText(html_to_text(html), 'plain'))        
+        msg.attach(MIMEText(html, 'html'))        
     
         logger.debug('sending message: \n{}'.format(msg.as_string()))
     
@@ -364,6 +482,18 @@ class Manager(object):
         for checker in self._checkers:
             msg += '{}\n'.format(checker)
         return msg
+    
+    def html(self):
+        msg = "<ul>\n"
+        for checker in self._checkers:
+            msg += '  <li>{}</li>\n'.format(checker.html())
+        msg += "</ul>\n"
+        return msg
+    
+    def shutdown(self):
+        print("SHUT DOWN")        
+        html = "<p>Babysitter SHUTTING DOWN.</p>{}\n".format(self.html())
+        self.send_email_with_time(html=html, subject="babysitter.py shutting down")        
 
 
 def _init_logger():
@@ -395,10 +525,6 @@ def _shutdown():
     logger.info("Shutting down.")
     logging.shutdown() 
         
-        
-def _signal_handler(signal_number, frame):
-    raise KeyboardInterrupt()
-
 
 def main():
     
@@ -408,8 +534,11 @@ def main():
 
     # register SIGINT and SIGTERM handler
     logger.info("MAIN: setting signal handlers")
-    signal.signal(signal.SIGINT,  _signal_handler)
-    signal.signal(signal.SIGTERM, _signal_handler)
+
+    # Python registers SIGINT but not SIGTERM. So use the same
+    # sig handler for SIGINT for SIGTERM.  This allows us to 
+    # clean up even when the code is terminated with kill or killall.
+    signal.signal(signal.SIGTERM, signal.signal(signal.SIGINT, signal.SIG_DFL))
 
     # Wrap manager.run() in a "try... except" block so we
     # can gracefully catch KeyboardInterrupt exceptions or we
@@ -419,8 +548,10 @@ def main():
         manager.load_config("babysitter_config.xml")    
         manager.run()
     except KeyboardInterrupt:
+        manager.shutdown()
         _shutdown()
-    except Exception:
+    except:
+        print("Ouch")
         logger.exception("")
         _shutdown()
         raise
