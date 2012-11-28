@@ -44,5 +44,13 @@
     If the file grows then state == FAIL. -->
     
     <filegrows>cron.log</filegrows>
+    
+    <!-- *************** HEART BEAT ***************************-->
+    <heartbeat>
+        <hour>8</hour> <!-- The hour to send the heart beat each day -->
+        <cmd></cmd> <!-- The command to generate an HTML report (optional) -->
+        <html_file></html_file> <!-- The HTML file to send. All images will be attached. -->
+    </heartbeat>
+    
 
 </config>

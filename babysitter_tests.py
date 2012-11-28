@@ -91,7 +91,57 @@ class TestLoadConfig(unittest.TestCase):
         self.assertEqual(self.manager.SMTP_SERVER, 'mail.test.server')
         self.assertEqual(self.manager.EMAIL_FROM, 'test@email.address')
         self.assertEqual(self.manager.EMAIL_TO, 'another@email.address')
-
+        
+    def test_heartbeat(self):
+        xml = """
+        <config>
+            <heartbeat>
+                <hour>8</hour>
+                <cmd>ls</cmd>
+                <html_file>index.html</html_file>
+            </heartbeat>        
+        </config>
+        """
+        self._load_config(xml)
+        self.assertEqual(self.manager._heartbeat['hour'], 8)
+        self.assertEqual(self.manager._heartbeat['cmd'], "ls")
+        self.assertEqual(self.manager._heartbeat['html_file'], "index.html")
+        self.assertEqual(self.manager._heartbeat['last_checked'], datetime.datetime.now().hour)
+        
+        self._run_heartbeat_tests()
+        
+    def test_heartbeat_just_hour(self):
+        xml = """
+        <config>
+            <heartbeat>
+                <hour>8</hour>
+            </heartbeat>        
+        </config>
+        """
+        self._load_config(xml)
+        self.assertEqual(self.manager._heartbeat['hour'], 8)
+        
+        self._run_heartbeat_tests()          
+    
+    
+    def _run_heartbeat_tests(self):
+        # test need_to_send by mocking up times
+        self.manager._heartbeat['hour'] = datetime.datetime.now().hour
+        self.manager._heartbeat['last_checked'] = datetime.datetime.now().hour-1
+        self.assertTrue( self.manager._need_to_send_heartbeat() )
+        self.assertFalse( self.manager._need_to_send_heartbeat() )
+        
+        # test _send_heartbeat
+        self.manager._send_heartbeat()    
+    
+    def test_none(self):
+        xml = """
+        <config>      
+        </config>
+        """
+        self._load_config(xml)        
+        self.assertEqual(self.manager._heartbeat, {})
+        self.assertFalse( self.manager._need_to_send_heartbeat() )        
 
 if __name__ == '__main__':
     unittest.main()

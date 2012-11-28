@@ -8,6 +8,7 @@ import subprocess
 import os
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from abc import ABCMeta, abstractproperty
 import xml.etree.ElementTree as ET # for XML parsing
@@ -265,6 +266,10 @@ class DiskSpaceRemaining(Checker):
 
 
 def html_to_text(html):
+    # We could use ElementTree to convert from HTML to text
+    # but ET doesn't format tables the way I'd
+    # like them to be formatted.
+    
     # Remove all unwanted white space
     html = re.sub(r'^( )*', '', html, flags=re.MULTILINE)
     html = re.sub(r'( )*$', '', html, flags=re.MULTILINE)
@@ -292,7 +297,7 @@ def html_to_text(html):
     html = html.replace("<h6>", "###### ")
   
     # use regex to remove any other HTML tags
-    html = re.sub("""</?[a-zA-Z0-9( =:"!.)]*/?>""", "", html)
+    html = re.sub("""</?[a-zA-Z0-9( =:'"_!.,+/;\(\))]*/?>""", "", html)
     
     return html
 
@@ -323,7 +328,7 @@ class Manager(object):
                         checker.restart()
                         time.sleep(5)
                         html += "<p>" + checker.html() + "</p>\n"
-                            
+
             if html:
                 html += "<h2>CURRENT STATE OF ALL CHECKERS:</h2>\n" + self.html()
                 self.send_email_with_time(html=html, subject="babysitter errors.")
@@ -417,25 +422,38 @@ class Manager(object):
             self._heartbeat['last_checked'] = datetime.datetime.now().hour
         
     def _email_html_file(self, subject, filename, extra_text=None):
-        if filename:
-            try:
-                html_file = open(filename, 'r')
-                html = html_file.read()
-            except:
-                logger.warn("Failed to open filename {}".format(filename))
-                extra_text += "<p><span style=\"color:red\">Failed to open filename {}</span></p>".format(filename)
+            
+        # Load the HTML filename as an ElementTree so we can extract
+        # all images and modify the src to include "cid:"
+        try:
+            tree = ET.parse(filename)
+        except:
+            logger.warn("Failed to open filename {}".format(filename))
+            extra_text += "<p><span style=\"color:red\">Failed to open filename {}</span></p>".format(filename)
+            self.send_email(subject, extra_text)
+            return
+        
+        # Extract images
+        directory = os.path.dirname(filename)        
+        img_files = []
+        for img in tree.getiterator('img'):
+            img_file = os.path.join(directory, img.get('src'))
+            img_files.append(img_file)
+            img.set('src', "cid:"+img.get('src'))
+
+        html = ET.tostring(tree.getroot())
         
         if extra_text:
             html = html.replace("<body>", "<body>\n{}".format(extra_text))
         
-        self.send_email(subject, html)
+        self.send_email(subject, html, img_files)
         
     def send_email_with_time(self, subject, html):
         html += '<p>Unixtime = {}</p>\n'.format(time.time())       
         html = "<html>\n<head></head>\n<body>" + html + "</body>\n</html>\n"
         self.send_email(subject, html)        
 
-    def send_email(self, subject, html):
+    def send_email(self, subject, html, img_files=None):
         if not self.SMTP_SERVER:
             logger.info("Not sending email because no SMTP server configured")
             return
@@ -451,10 +469,28 @@ class Manager(object):
         msg.attach(MIMEText(html_to_text(html), 'plain'))        
         msg.attach(MIMEText(html, 'html'))        
     
+        # Attach image files
+        if img_files:
+            for img_filename in img_files:
+                try:
+                    fp = open(img_filename, 'rb')
+                except:
+                    logger.warn("Can't open image file {}".format(img_filename))
+                else:
+                    mime_img = MIMEImage(fp.read())
+                    fp.close()
+                    basename = os.path.basename(img_filename)
+                    mime_img.add_header('Content-Disposition', 'attachment',
+                                        filename=basename)
+                    mime_img.add_header('Content-ID', '<' + basename + '>')
+                    msg.attach(mime_img)
+
         logger.debug('sending message: \n{}'.format(msg.as_string()))
     
-        retry = True
-        while retry is True:
+        # Send email to SMTP server. Retry if server disconnects.
+        retries = 0
+        while retries < 5:
+            retries += 1
             try:
                 logger.debug("SMPT_SSL")
                 s = smtplib.SMTP_SSL(self.SMTP_SERVER)
@@ -475,7 +511,7 @@ class Manager(object):
                 raise
             else:
                 logger.info("Successfully sent message")
-                retry = False
+                break
         
     def __str__(self):
         msg = ""
