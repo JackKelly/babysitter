@@ -14,6 +14,7 @@ from abc import ABCMeta, abstractproperty
 import xml.etree.ElementTree as ET # for XML parsing
 import signal
 import re
+import sys
 
 """
 ***********************************
@@ -375,7 +376,12 @@ class Manager(object):
                               extra_text=msg)
             
     def load_config(self, config_file):
-        config_tree = ET.parse(config_file)
+        try:
+            config_tree = ET.parse(config_file)
+        except IOError:
+            msg = "Cannot open {}".format(config_file)
+            logger.critical(msg)
+            sys.exit(msg)
 
         # Email config
         self.SMTP_SERVER = config_tree.findtext("smtp_server")
@@ -527,9 +533,10 @@ class Manager(object):
         return msg
     
     def shutdown(self):
-        print("SHUT DOWN")        
-        html = "<p>Babysitter SHUTTING DOWN.</p>{}\n".format(self.html())
-        self.send_email_with_time(html=html, subject="babysitter.py shutting down")        
+        print("SHUT DOWN")
+        if self.__dict__.get("SMTP_SERVER"):
+            html = "<p>Babysitter SHUTTING DOWN.</p>{}\n".format(self.html())
+            self.send_email_with_time(html=html, subject="babysitter.py shutting down")        
 
 
 def _init_logger():
@@ -586,8 +593,10 @@ def main():
     except KeyboardInterrupt:
         manager.shutdown()
         _shutdown()
+    except SystemExit, e:
+        _shutdown()
+        sys.exit(e)    
     except:
-        print("Ouch")
         logger.exception("")
         _shutdown()
         raise
