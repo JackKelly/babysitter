@@ -533,7 +533,7 @@ class Manager(object):
         return msg
     
     def shutdown(self):
-        print("SHUT DOWN")
+        print("\nSHUT DOWN")
         if self.__dict__.get("SMTP_SERVER"):
             html = "<p>Babysitter SHUTTING DOWN.</p>{}\n".format(self.html())
             self.send_email_with_time(html=html, subject="babysitter.py shutting down")        
@@ -581,7 +581,7 @@ def main():
     # Python registers SIGINT but not SIGTERM. So use the same
     # sig handler for SIGINT for SIGTERM.  This allows us to 
     # clean up even when the code is terminated with kill or killall.
-    signal.signal(signal.SIGTERM, signal.signal(signal.SIGINT, signal.SIG_DFL))
+    signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))
 
     # Wrap manager.run() in a "try... except" block so we
     # can gracefully catch KeyboardInterrupt exceptions or we
