@@ -249,20 +249,22 @@ class DiskSpaceRemaining(Checker):
     @property
     def time_until_full(self):
         """Returns time delta object for time until disk is full."""
-        secs_until_full = -self.space_decay_rate * self.available_space
-        return datetime.timedelta(seconds=secs_until_full)
+        if ((datetime.datetime.now() - self.initial_time).total_seconds() > UPDATE_PERIOD
+            and self.space_decay_rate < 0):
+            secs_until_full = self.available_space / -self.space_decay_rate 
+            return datetime.timedelta(seconds=secs_until_full)
     
     def extra_text(self):
         msg = ", remaining={:.0f} MB".format(self.available_space)
         
-        if ((datetime.datetime.now() - self.initial_time).total_seconds() > 1
-            and self.space_decay_rate < 0):
+        if self.time_until_full:
             msg += (", time until full={:d}days {:d}hrs {:d}mins"
                     .format(self.time_until_full.days,
                             self.time_until_full.seconds // 3600, 
                             self.time_until_full.seconds //   60))
             msg += ", full on {}".format((datetime.datetime.now() + self.time_until_full)
                                          .strftime("%d/%m/%y %H:%M"))
+
         return msg    
 
 
