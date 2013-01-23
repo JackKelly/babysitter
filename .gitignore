@@ -6,3 +6,6 @@
 
 babysitter_config.xml
 nohup.out
+babysitter.egg-info/
+build/
+
