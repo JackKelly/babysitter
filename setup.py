@@ -1,7 +1,5 @@
 from setuptools import setup, find_packages
 
-print find_packages()
-
 setup(
     name = "babysitter",
     version = "0.1",
