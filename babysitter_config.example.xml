@@ -49,7 +49,7 @@
     <heartbeat>
         <hour>8</hour> <!-- The hour to send the heart beat each day -->
         <cmd></cmd> <!-- The command to generate an HTML report (optional) -->
-        <html_file></html_file> <!-- The HTML file to send. All images will be attached. -->
+        <html_file></html_file> <!-- The HTML file to send (optional). All images will be attached. -->
     </heartbeat>
     
 
