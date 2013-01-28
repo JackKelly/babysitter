@@ -3,7 +3,7 @@
 from __future__ import print_function, division
 import time
 import datetime
-import logging
+import logging, logging.handlers
 import subprocess
 import os
 import smtplib
@@ -545,19 +545,20 @@ def _init_logger():
     global logger
 
     # create logger
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("babysitter")
     logger.setLevel(logging.DEBUG)
 
     # create console handler for stderr
     ch_stderr = logging.StreamHandler()
     ch_stderr.setLevel(logging.INFO)
-    stderr_formatter = logging.Formatter('%(asctime)s %(levelname)s: '
-                        '%(message)s', datefmt='%d/%m/%y %H:%M:%S')
+    stderr_formatter = logging.Formatter('%(asctime)s %(levelname)s '
+                        '%(message)s', datefmt="%y-%m-%d %H:%M:%S")
     ch_stderr.setFormatter(stderr_formatter)
     logger.addHandler(ch_stderr)
     
     # create file handler for babysitter.log
-    fh = logging.FileHandler('babysitter.log')
+    logfile = os.path.dirname(os.path.realpath(__file__)) + "/../babysitter.log"
+    fh = logging.handlers.RotatingFileHandler(logfile, maxBytes=1E6, backupCount=5)
     fh.setLevel(logging.DEBUG)
     fh_formatter = logging.Formatter('%(asctime)s level=%(levelname)s: '
                         'function=%(funcName)s, thread=%(threadName)s'
