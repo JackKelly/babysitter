@@ -152,7 +152,7 @@ class Process(Checker):
 
 
 class File(Checker):
-    def __init__(self, name, timeout=120):
+    def __init__(self, name, timeout=120, label=""):
         """File constructor
         
         Args:
@@ -161,6 +161,7 @@ class File(Checker):
                 considered overdue.
         """
         self.timeout = int(timeout)
+        self.appliance = label        
         super(File, self).__init__(name)
 
     @property
@@ -176,7 +177,12 @@ class File(Checker):
         return os.path.getmtime(self.name)
     
     def extra_text(self):
-        msg = ", last modified {:.1f}s ago.".format(self.seconds_since_modified)
+        if self.appliance:
+            msg = ", {}".format(self.appliance)
+        else:
+            msg = ""
+        msg += ", last modified {:.1f}s ago.".format(
+                                               self.seconds_since_modified)
         return msg
 
 
@@ -407,6 +413,13 @@ class Manager(object):
         for f in files_etree:
             self.append(File(f.findtext('location'), 
                              int(f.findtext('timeout'))))
+            
+        # Load powerdata
+        powerdata_etree = config_tree.findall("powerdata")
+        for pd in powerdata_etree:
+            self._load_powerdata(pd.findtext("dir"),
+                                 pd.findtext("numeric_subdirs"),
+                                 int(pd.findtext("timeout")))
         
         # Load processes
         processes_etree = config_tree.findall("process")
@@ -428,6 +441,54 @@ class Manager(object):
             self._heartbeat['cmd'] = heartbeat_etree.findtext("cmd")
             self._heartbeat['html_file'] = heartbeat_etree.findtext("html_file")
             self._heartbeat['last_checked'] = datetime.datetime.now().hour
+        
+    def _load_powerdata(self, directory, numeric_subdirs, timeout):
+        logger.info("Loading powerdata")
+        
+        # Process directory to create a proper data_dir
+        if directory[0] == "$":
+            data_dir = os.environ.get(directory[1:])
+            if not data_dir:
+                log.critical("Environment variable {} not set".format(directory))
+                sys.exit(1)
+        else:
+            data_dir = directory
+            
+        data_dir = os.path.realpath(data_dir)
+        
+        # process numeric_subdirs
+        if numeric_subdirs.upper() == "TRUE":
+            # find the highest number data_dir
+            existing_subdirs = os.walk(data_dir).next()[1]
+            if existing_subdirs:
+                existing_subdirs.sort()
+                data_dir += "/" + existing_subdirs[-1]
+                
+        # load all file_names in data_dir, using names from labels.dat
+        file_names = os.walk(data_dir).next()[2]
+        print("*********")
+        print(file_names)
+        
+        # load labels
+        labels = {}
+        if "labels.dat" in file_names:
+            logger.info("Opening labels.dat file")
+            file_names.remove("labels.dat")
+            with open(data_dir + "/labels.dat") as labels_file:
+                lines = labels_file.readlines()
+                
+            for line in lines:
+                line = line.split()
+                labels[int(line[0])] = line[1]
+            
+        for file_name in file_names:
+            chan = file_name.replace("channel_", "").replace(".dat", "")
+            chan = int(chan)
+            if labels and labels.get(chan):
+                label = labels.get(chan)
+            else:
+                label = ""
+            self.append(File(data_dir + "/" + file_name, timeout, label))
         
     def _email_html_file(self, subject, filename, extra_text=None):
             
@@ -591,7 +652,8 @@ def main():
     # can send any unexpected exceptions to logger.
     try:
         manager = Manager()
-        manager.load_config("babysitter_config.xml")    
+        manager.load_config(os.path.dirname(os.path.realpath(__file__)) 
+                            + "/../babysitter_config.xml")    
         manager.run()
     except KeyboardInterrupt:
         manager.shutdown()

@@ -3,6 +3,7 @@
 *.pyc
 *.*~
 *.log
+*.log.*
 
 babysitter_config.xml
 nohup.out
