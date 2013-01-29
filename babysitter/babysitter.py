@@ -553,8 +553,6 @@ class Manager(object):
                                         filename=basename)
                     mime_img.add_header('Content-ID', '<' + basename + '>')
                     msg.attach(mime_img)
-
-        logger.debug('sending message: \n{}'.format(msg.as_string()))
     
         # Send email to SMTP server. Retry if server disconnects.
         retries = 0
@@ -574,9 +572,7 @@ class Manager(object):
                 logger.exception("")
                 time.sleep(2)
             except smtplib.SMTPAuthenticationError:
-                error_msg = "SMTP authentication error. Please check username and password in config file."
-                print(error_msg)
-                logger.exception(error_msg)
+                logger.exception("SMTP authentication error. Please check username and password in config file.")
                 raise
             else:
                 logger.info("Successfully sent message")
