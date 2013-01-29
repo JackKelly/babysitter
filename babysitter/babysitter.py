@@ -174,15 +174,23 @@ class File(Checker):
 
     @property        
     def last_modified(self):
-        return os.path.getmtime(self.name)
+        try:
+            t = os.path.getmtime(self.name)
+        except OSError: # file not found
+            t = 0
+        return t
     
     def extra_text(self):
+        msg = ""
         if self.appliance:
-            msg = ", {}".format(self.appliance)
-        else:
-            msg = ""
-        msg += ", last modified {:.1f}s ago.".format(
+            msg += ", {}".format(self.appliance)
+            
+        if os.path.exists(self.name):
+            msg += ", last modified {:.1f}s ago.".format(
                                                self.seconds_since_modified)
+        else:
+            msg += ", does not exist!"
+            
         return msg
 
 
@@ -464,31 +472,26 @@ class Manager(object):
                 existing_subdirs.sort()
                 data_dir += "/" + existing_subdirs[-1]
                 
-        # load all file_names in data_dir, using names from labels.dat
-        file_names = os.walk(data_dir).next()[2]
-        print("*********")
-        print(file_names)
+        logger.info("data_dir = {}".format(data_dir))
+                
         
         # load labels
-        labels = {}
-        if "labels.dat" in file_names:
-            logger.info("Opening labels.dat file")
-            file_names.remove("labels.dat")
-            with open(data_dir + "/labels.dat") as labels_file:
-                lines = labels_file.readlines()
-                
+        logger.info("Opening labels.dat file")
+        try:
+            labels_file = open(data_dir + "/labels.dat")
+        except:
+            logger.exception("")
+            sys.exit(1)
+        else:
+            lines = labels_file.readlines()
+            labels_file.close()
             for line in lines:
                 line = line.split()
-                labels[int(line[0])] = line[1]
-            
-        for file_name in file_names:
-            chan = file_name.replace("channel_", "").replace(".dat", "")
-            chan = int(chan)
-            if labels and labels.get(chan):
-                label = labels.get(chan)
-            else:
-                label = ""
-            self.append(File(data_dir + "/" + file_name, timeout, label))
+                chan = int(line[0])
+                label = line[1]
+                file_name = data_dir + "/channel_{:d}.dat".format(chan)
+                self.append(File(file_name, timeout, label))
+
         
     def _email_html_file(self, subject, filename, extra_text=None):
             
