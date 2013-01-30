@@ -5,7 +5,7 @@
 *.log
 *.log.*
 
-babysitter_config.xml
+email_config.xml
 nohup.out
 babysitter.egg-info/
 build/
