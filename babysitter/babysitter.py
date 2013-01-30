@@ -453,7 +453,7 @@ class Manager(object):
     def _load_powerdata(self, directory, numeric_subdirs, timeout):
         logger.info("Loading powerdata")
         
-        time.sleep(1) # allow rfm_ecomanager_logger time to produce labels.dat
+        time.sleep(10) # allow rfm_ecomanager_logger time to produce labels.dat
         
         # Instantiate data_dir
         if directory[0] == "$":
