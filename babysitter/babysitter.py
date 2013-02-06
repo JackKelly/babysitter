@@ -10,7 +10,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
-from abc import ABCMeta, abstractproperty
+from abc import ABCMeta, abstractmethod
 import xml.etree.ElementTree as ET # for XML parsing
 import signal
 import re
@@ -104,12 +104,12 @@ class Process(Checker):
     
     """
 
-    def __init__(self, name):
+    def __init__(self, name, restart_command=None):
         """
         Args:
             name (str): the process name as it appears in `ps -A`
         """
-        self.restart_command = None
+        self.restart_command = restart_command
         super(Process, self).__init__(name)
 
     def pid(self):
@@ -304,37 +304,47 @@ def html_to_text(html):
     
     return html
 
+
+class HeartBeat(object):
+    def __init__(self):
+        self.hour = None
+        self.cmd = None
+        self.html_file = None
+        self.last_checked = None
+
     
 class Manager(object):
     """Manages multiple Checker objects."""
     
     def __init__(self):
-        self._checkers = []
-        self._heartbeat = {}
+        self.checkers = []
+        self.heartbeat = HeartBeat()
         
     def append(self, checker):
-        self._checkers.append(checker)
+        self.checkers.append(checker)
         logger.info('Added {} to Manager: {}'.format(checker.__class__.__name__,
-                                                     self._checkers[-1]))
+                                                     self.checkers[-1]))
         
     def run(self):
         self._send_heartbeat()
         
         while True:       
             html = ""
-            for checker in self._checkers:
-                if checker.just_changed_state:
-                    html += "<h2>STATE CHANGED:</h2>\n"
-                    html += "<p>" + checker.html() + "</p>\n"
-                    if isinstance(checker, Process) and checker.state == FAIL:
+            for checker in self.checkers:
+                if checker.just_changed_state():
+                    if not html:
+                        html += "<h2>STATE CHANGED:</h2>\n<ul>"
+                    html += "<li>" + checker.html() + "</li>\n"
+                    if isinstance(checker, Process) and checker.state() == FAIL:
                         html += "<p>Attempting to restart...</p>\n"
                         checker.restart()
                         time.sleep(5)
                         html += "<p>" + checker.html() + "</p>\n"
 
             if html:
-                html += "<h2>CURRENT STATE OF ALL CHECKERS:</h2>\n" + self.html()
-                self.send_email_with_time(html=html, subject="babysitter errors.")
+                html += "</ul>\n<h2>CURRENT STATE OF ALL CHECKERS:</h2>\n" + self.html()
+                self.send_email_with_time(html=html,
+                                          subject="Babysitter detected state change.")
     
             if self._need_to_send_heartbeat():
                 self._send_heartbeat()
@@ -342,128 +352,55 @@ class Manager(object):
             time.sleep(UPDATE_PERIOD)
     
     def _need_to_send_heartbeat(self):
-        if not self._heartbeat:
+        if not self.heartbeat:
             return False
         
         now_hour = datetime.datetime.now().hour
-        need_to_send = (now_hour == self._heartbeat['hour'] and
-                self._heartbeat['last_checked'] != self._heartbeat['hour'])
-        self._heartbeat['last_checked'] = now_hour
+        need_to_send = (now_hour == self.heartbeat.hour and
+                self.heartbeat.last_checked != self.heartbeat.hour)
+        self.heartbeat.last_checked = now_hour
         return need_to_send
     
     def _send_heartbeat(self):
         msg = None
-        if self._heartbeat.get('cmd'):
+        if self.heartbeat.cmd:
             logger.info("Attempting to run heartbeat command {}"
-                        .format(self._heartbeat['cmd']))
+                        .format(self.heartbeat.cmd))
             try:
-                p=subprocess.Popen(self._heartbeat['cmd'].split(), stderr=subprocess.PIPE)
+                p = subprocess.Popen(self.heartbeat.cmd.split(), stderr=subprocess.PIPE)
                 p.wait()
             except Exception:
-                msg = "<p><span style=\"color:red\">Failed to run {}</span></p>\n".format(self._heartbeat['cmd'])
+                msg = "<p><span style=\"color:red\">Failed to run {}</span></p>\n".format(self.heartbeat.cmd)
                 logger.exception(html_to_text(msg))
             else:
                 if p.returncode == 0:
-                    msg = "<p>Successfully ran {}</p>\n".format(self._heartbeat['cmd'])
+                    msg = "<p>Successfully ran {}</p>\n".format(self.heartbeat.cmd)
                     logger.info(html_to_text(msg))
                 else:
-                    msg = "<p><span style=\"color:red\">Failed to run {}<br/>\n".format(self._heartbeat['cmd'])
+                    msg = "<p><span style=\"color:red\">Failed to run {}<br/>\n".format(self.heartbeat.cmd)
                     msg += "stderr: {}</span></p>\n".format(p.stderr.read())
                     logger.warn(html_to_text(msg))
 
         msg = self.html() + msg
 
         self._email_html_file(subject='Babysitter heartbeat', 
-                              filename=self._heartbeat.get('html_file'),
+                              filename=self.heartbeat.html_file,
                               extra_text=msg)
-    
-    
-    def load_email_config(self, config_file):
-        try:
-            config_tree = ET.parse(config_file)
-        except IOError:
-            msg = "Cannot open {}".format(config_file)
-            logger.critical(msg)
-            sys.exit(msg)
-
-        # Email config
-        self.SMTP_SERVER = config_tree.findtext("smtp_server")
-        self.EMAIL_FROM  = config_tree.findtext("email_from")
-        self.EMAIL_TO    = config_tree.findtext("email_to")
-        self.USERNAME    = config_tree.findtext("username")
-        self.PASSWORD    = config_tree.findtext("password")
-    
-        logger.debug('\nSMTP_SERVER={}\nEMAIL_FROM={}\nEMAIL_TO={}'
-                     .format(self.SMTP_SERVER, self.EMAIL_FROM, self.EMAIL_TO))        
-    
-    
-    def load_config(self, config_file):
-        try:
-            config_tree = ET.parse(config_file)
-        except IOError:
-            msg = "Cannot open {}".format(config_file)
-            logger.critical(msg)
-            sys.exit(msg)
-    
-        # Disk space checker
-        disk_space_threshold_etree = config_tree.find("disk_space")
-        if disk_space_threshold_etree is not None:
-            disk_space_threshold = disk_space_threshold_etree.findtext("threshold")
-            mount_point = disk_space_threshold_etree.findtext("mount_point")
-            self.append(DiskSpaceRemaining(disk_space_threshold, mount_point))
-    
-        # Load files
-        files_etree = config_tree.findall("file")
-        for f in files_etree:
-            self.append(File(f.findtext('location'), 
-                             int(f.findtext('timeout'))))
-            
-        # Load powerdata
-        powerdata_etree = config_tree.findall("powerdata")
-        for pd in powerdata_etree:
-            self._load_powerdata(pd.findtext("dir"),
-                                 pd.findtext("numeric_subdirs"),
-                                 int(pd.findtext("timeout")))
         
-        # Load processes
-        processes_etree = config_tree.findall("process")
-        for process in processes_etree:
-            p = Process(process.findtext('name'))
-            p.restart_command = process.findtext('restart_command')
-            self.append(p)
-            
-        # Load file grows
-        filegrows_etree = config_tree.findall("filegrows")
-        for f in filegrows_etree:
-            if f.text is not None:
-                self.append(FileGrows(f.text))
-        
-        # Load heartbeat
-        heartbeat_etree = config_tree.find("heartbeat")
-        if heartbeat_etree is not None:
-            self._heartbeat['hour'] = int(heartbeat_etree.findtext("hour"))
-            self._heartbeat['cmd'] = heartbeat_etree.findtext("cmd")
-            self._heartbeat['html_file'] = heartbeat_etree.findtext("html_file")
-            self._heartbeat['last_checked'] = datetime.datetime.now().hour
-        
-    def _load_powerdata(self, directory, numeric_subdirs, timeout):
-        logger.info("Loading powerdata")
+    def load_powerdata(self, directory, numeric_subdirs, timeout):
+        logger.info("Loading powerdata... waiting 10 seconds for labels.dat")
         
         time.sleep(10) # allow rfm_ecomanager_logger time to produce labels.dat
         
         # Instantiate data_dir
-        if directory[0] == "$":
-            data_dir = os.environ.get(directory[1:])
-            if not data_dir:
-                logger.critical("Environment variable {} not set".format(directory))
-                sys.exit(1)
-        else:
-            data_dir = directory
+        if not directory:
+            logger.critical("Directory {} not set".format(directory))
+            sys.exit(1)
             
-        data_dir = os.path.realpath(data_dir)
+        data_dir = os.path.realpath(directory)
         
         # process numeric_subdirs
-        if numeric_subdirs.upper() == "TRUE":
+        if numeric_subdirs:
             # find the highest number data_dir
             existing_subdirs = os.walk(data_dir).next()[1]
             if existing_subdirs:
@@ -471,7 +408,6 @@ class Manager(object):
                 data_dir += "/" + existing_subdirs[-1]
                 
         logger.info("data_dir = {}".format(data_dir))
-                
         
         # load labels
         logger.info("Opening labels.dat file")
@@ -581,13 +517,13 @@ class Manager(object):
         
     def __str__(self):
         msg = ""
-        for checker in self._checkers:
+        for checker in self.checkers:
             msg += '{}\n'.format(checker)
         return msg
     
     def html(self):
         msg = "<ul>\n"
-        for checker in self._checkers:
+        for checker in self.checkers:
             msg += '  <li>{}</li>\n'.format(checker.html())
         msg += "</ul>\n"
         return msg
@@ -599,7 +535,7 @@ class Manager(object):
             self.send_email_with_time(html=html, subject="babysitter.py shutting down")        
 
 
-def _init_logger():
+def init_logger():
     global logger
 
     # create logger
@@ -628,11 +564,50 @@ def _init_logger():
 def _shutdown():
     logger.info("Shutting down.")
     logging.shutdown() 
+
+
+def _set_config(manager):
+    ########### EMAIL CONFIG ############################################
+    manager.SMTP_SERVER = ""
+    manager.EMAIL_FROM  = ""
+    manager.EMAIL_TO    = ""
+    manager.USERNAME    = ""
+    manager.PASSWORD    = ""
+
+    ########### DISK SPACE CHECKER ######################################
+    manager.append(DiskSpaceRemaining(threshold=200, path="/"))
+
+    ########### FILES ###################################################
+    # manager.append(File(name="/path/to/file", timeout=120))
         
+    ########### POWERDATA ###############################################
+    manager.load_powerdata(directory=os.environ.get("DATA_DIR"),
+                         numeric_subdirs=True,
+                         timeout=300)
+    
+    ########### PROCESSES ###############################################
+    restart_command = ("nohup " +
+                       os.path.realpath(
+                          os.environ.get("RFM_ECOMANAGER_LOGGER_DIR")) + 
+                       "/rfm_ecomanager_logger/rfm_ecomanager_logger.py")
+    
+    manager.append(Process(name="rfm_ecomanager_logger.py",
+                        restart_command=restart_command))
+
+    ########### FILEGROWS ###############################################
+    # manager.append(FileGrows("cron.log"))
+    
+    ########### HEARTBEAT ###############################################
+    powerstats_dir = os.path.realpath(os.environ.get("POWERSTATS_DIR"))
+    manager.heartbeat.hour = 6 # 24hr clock
+    manager.heartbeat.cmd = (powerstats_dir +
+                          "/powerstats/powerstats.py --html --cache")
+    manager.heartbeat.html_file = (powerstats_dir + "/html/index.html")
+    manager.heartbeat.last_checked = datetime.datetime.now().hour
+    
 
 def main():
-    
-    _init_logger()
+    init_logger()
     logger.debug('MAIN: babysitter.py starting up. Unixtime = {:.0f}'
                   .format(time.time()))
 
@@ -649,9 +624,7 @@ def main():
     # can send any unexpected exceptions to logger.
     try:
         manager = Manager()
-        config_file_path = os.path.dirname(os.path.realpath(__file__)) + "/../"
-        manager.load_email_config(config_file_path + "email_config.xml")
-        manager.load_config(config_file_path + "babysitter_config.xml")
+        _set_config(manager)
         manager.run()
     except KeyboardInterrupt:
         manager.shutdown()
@@ -664,7 +637,6 @@ def main():
         logger.exception("")
         _shutdown()
         raise
-    
 
 if __name__ == "__main__":
     main()
