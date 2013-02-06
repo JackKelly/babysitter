@@ -123,6 +123,11 @@ def main():
     manager = Manager()
     _set_config(manager)
     
+    WAIT = 60 # seconds
+    log.info("Waiting {} seconds for data files to become available...".format(WAIT))
+    time.sleep(WAIT)
+    log.info("...done waiting.  Now starting manager.run()")
+    
     try:
         manager.run()
     except KeyboardInterrupt:
