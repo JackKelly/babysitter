@@ -63,11 +63,6 @@ def init_logger():
     fh.setFormatter(fh_formatter)    
     logger.addHandler(fh)
 
-def _shutdown():
-    log.info("Shutting down.")
-    logging.shutdown() 
-
-
 def _set_config(manager):
     ########### EMAIL CONFIG ############################################
     manager.SMTP_SERVER = email_config.SMTP_SERVER
@@ -125,21 +120,14 @@ def main():
     # register SIGINT and SIGTERM handler
     log.info("MAIN: setting signal handlers")
 
-    # Wrap manager.run() in a "try... except" block so we
-    # can gracefully catch KeyboardInterrupt exceptions or we
-    # can send any unexpected exceptions to logger.
+    manager = Manager()
+    _set_config(manager)
+    
     try:
-        manager = Manager()
-        _set_config(manager)
         manager.run()
     except KeyboardInterrupt:
-        manager.shutdown()
-    except SystemExit, e:
-        log.error(e)
-    except:
-        log.exception("")
-    
-    _shutdown()
+        # Catch this so we don't spit out unwanted errors in the log
+        pass
 
 if __name__ == "__main__":
     main()

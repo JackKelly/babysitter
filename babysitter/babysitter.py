@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET # for XML parsing
 import signal
 import re
 import sys
+import atexit
 
 """
 ***********************************
@@ -329,6 +330,8 @@ class Manager(object):
         # clean up even when the code is terminated with kill or killall.
         signal.signal(signal.SIGTERM, signal.default_int_handler)
         
+        atexit.register(self.shutdown)
+        
     def append(self, checker):
         self.checkers.append(checker)
         log.info('Added {} to Manager: {}'.format(checker.__class__.__name__,
@@ -544,7 +547,9 @@ class Manager(object):
         return msg
     
     def shutdown(self):
-        print("\nSHUT DOWN")
+        log.info("Shutting down!")
         if self.__dict__.get("SMTP_SERVER"):
             html = "<p>Babysitter SHUTTING DOWN.</p>{}\n".format(self.html())
-            self.send_email_with_time(html=html, subject="babysitter.py shutting down")        
+            self.send_email_with_time(html=html, subject="babysitter.py shutting down")
+        logging.shutdown() 
+                  
