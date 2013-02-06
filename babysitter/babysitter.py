@@ -1,9 +1,8 @@
-#! /usr/bin/python
-
 from __future__ import print_function, division
 import time
 import datetime
 import logging, logging.handlers
+log = logging.getLogger("babysitter")
 import subprocess
 import os
 import smtplib
@@ -76,9 +75,9 @@ class Checker:
         if state == self.last_state:
             return False
         elif state == FAIL:
-            logger.warning('state change to FAIL: {}'.format(self))            
+            log.warning('state change to FAIL: {}'.format(self))            
         elif state == OK:
-            logger.info('state change: {}'.format(self))
+            log.info('state change: {}'.format(self))
         
         self.last_state = state
         return True
@@ -118,24 +117,24 @@ class Process(Checker):
     
     def restart(self):
         if self.restart_command is None:
-            logger.info("No restart string for {}".format(self.name))
+            log.info("No restart string for {}".format(self.name))
             return
         
         if self.state() == OK:
             return
         
-        logger.info("Attempting to restart {}".format(self.name))
+        log.info("Attempting to restart {}".format(self.name))
         try:
             p = subprocess.Popen(self.restart_command.split(),
                                  stderr=subprocess.PIPE)
         except Exception:
-            logger.exception("Failed to restart. {}".format(self))
+            log.exception("Failed to restart. {}".format(self))
         else:
             if p.poll(): # process has already terminated
-                logger.warn("Process {} has terminated already. stderr={}"
+                log.warn("Process {} has terminated already. stderr={}"
                             .format(self, p.stderr.read()))
             else:
-                logger.info("Successfully restarted. {}".format(self) )
+                log.info("Successfully restarted. {}".format(self) )
 
     def state(self):
         try:
@@ -319,10 +318,14 @@ class Manager(object):
     def __init__(self):
         self.checkers = []
         self.heartbeat = HeartBeat()
+        # Python registers SIGINT but not SIGTERM. So use the same
+        # sig handler for SIGINT for SIGTERM.  This allows us to 
+        # clean up even when the code is terminated with kill or killall.
+        signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))
         
     def append(self, checker):
         self.checkers.append(checker)
-        logger.info('Added {} to Manager: {}'.format(checker.__class__.__name__,
+        log.info('Added {} to Manager: {}'.format(checker.__class__.__name__,
                                                      self.checkers[-1]))
         
     def run(self):
@@ -364,22 +367,22 @@ class Manager(object):
     def _send_heartbeat(self):
         msg = None
         if self.heartbeat.cmd:
-            logger.info("Attempting to run heartbeat command {}"
+            log.info("Attempting to run heartbeat command {}"
                         .format(self.heartbeat.cmd))
             try:
                 p = subprocess.Popen(self.heartbeat.cmd.split(), stderr=subprocess.PIPE)
                 p.wait()
             except Exception:
                 msg = "<p><span style=\"color:red\">Failed to run {}</span></p>\n".format(self.heartbeat.cmd)
-                logger.exception(html_to_text(msg))
+                log.exception(html_to_text(msg))
             else:
                 if p.returncode == 0:
                     msg = "<p>Successfully ran {}</p>\n".format(self.heartbeat.cmd)
-                    logger.info(html_to_text(msg))
+                    log.info(html_to_text(msg))
                 else:
                     msg = "<p><span style=\"color:red\">Failed to run {}<br/>\n".format(self.heartbeat.cmd)
                     msg += "stderr: {}</span></p>\n".format(p.stderr.read())
-                    logger.warn(html_to_text(msg))
+                    log.warn(html_to_text(msg))
 
         msg = self.html() + msg
 
@@ -388,13 +391,11 @@ class Manager(object):
                               extra_text=msg)
         
     def load_powerdata(self, directory, numeric_subdirs, timeout):
-        logger.info("Loading powerdata... waiting 10 seconds for labels.dat")
-        
-        time.sleep(10) # allow rfm_ecomanager_logger time to produce labels.dat
+        log.info("Loading powerdata... waiting 10 seconds for labels.dat")
         
         # Instantiate data_dir
         if not directory:
-            logger.critical("Directory {} not set".format(directory))
+            log.critical("Directory for power data not set".format(directory))
             sys.exit(1)
             
         data_dir = os.path.realpath(directory)
@@ -407,25 +408,32 @@ class Manager(object):
                 existing_subdirs.sort()
                 data_dir += "/" + existing_subdirs[-1]
                 
-        logger.info("data_dir = {}".format(data_dir))
+        log.info("data_dir = {}".format(data_dir))
         
         # load labels
-        logger.info("Opening labels.dat file")
-        try:
-            labels_file = open(data_dir + "/labels.dat")
-        except:
-            logger.exception("")
-            sys.exit(1)
-        else:
-            lines = labels_file.readlines()
-            labels_file.close()
-            for line in lines:
-                line = line.split()
-                chan = int(line[0])
-                label = line[1]
-                file_name = data_dir + "/channel_{:d}.dat".format(chan)
-                self.append(File(file_name, timeout, label))
-
+        labels_filename = data_dir + "/labels.dat"
+        log.info("Opening {} file".format(labels_filename))
+        MAX_RETRIES = 5
+        for retry in range(MAX_RETRIES):
+            try:
+                labels_file = open(labels_filename)
+            except IOError: # file not found
+                if retry == MAX_RETRIES-1: # run out of retries
+                    log.critical("Failed to open {} after {} attempts."
+                                 .format(labels_filename, MAX_RETRIES))
+                else:
+                    log.info("Failed to open {}. Retrying...".format(labels_filename))
+                    sleep(1)
+            else:
+                lines = labels_file.readlines()
+                labels_file.close()
+                for line in lines:
+                    line = line.split()
+                    chan = int(line[0])
+                    label = line[1]
+                    file_name = data_dir + "/channel_{:d}.dat".format(chan)
+                    self.append(File(file_name, timeout, label))
+                break
         
     def _email_html_file(self, subject, filename, extra_text=None):
             
@@ -434,7 +442,7 @@ class Manager(object):
         try:
             tree = ET.parse(filename)
         except:
-            logger.warn("Failed to open filename {}".format(filename))
+            log.warn("Failed to open filename {}".format(filename))
             extra_text += "<p><span style=\"color:red\">Failed to open filename {}</span></p>".format(filename)
             self.send_email(subject, extra_text)
             return
@@ -461,7 +469,7 @@ class Manager(object):
 
     def send_email(self, subject, html, img_files=None):
         if not self.SMTP_SERVER:
-            logger.info("Not sending email because no SMTP server configured")
+            log.info("Not sending email because no SMTP server configured")
             return
                 
         hostname = os.uname()[1]
@@ -481,7 +489,7 @@ class Manager(object):
                 try:
                     fp = open(img_filename, 'rb')
                 except:
-                    logger.warn("Can't open image file {}".format(img_filename))
+                    log.warn("Can't open image file {}".format(img_filename))
                 else:
                     mime_img = MIMEImage(fp.read())
                     fp.close()
@@ -496,23 +504,24 @@ class Manager(object):
         while retries < 5:
             retries += 1
             try:
-                logger.debug("SMPT_SSL")
-                s = smtplib.SMTP_SSL(self.SMTP_SERVER)
-                logger.debug("logging in")
+                log.debug("SMPT_SSL {}".format(self.SMTP_SERVER))
+                s = smtplib.SMTP_SSL()
+                s.connect(self.SMTP_SERVER)
+                log.debug("logging in as {}".format(self.USERNAME))
                 s.login(self.USERNAME, self.PASSWORD)
                 
-                logger.debug("sendmail")                
+                log.debug("sendmail to {}".format(self.EMAIL_TO))
                 s.sendmail(me, [self.EMAIL_TO], msg.as_string())
-                logger.debug("quit")
+                log.debug("quit")
                 s.quit()
             except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError):
-                logger.exception("")
+                log.exception("")
                 time.sleep(2)
             except smtplib.SMTPAuthenticationError:
-                logger.exception("SMTP authentication error. Please check username and password in config file.")
+                log.exception("SMTP authentication error. Please check username and password in config file.")
                 raise
             else:
-                logger.info("Successfully sent message")
+                log.info("Successfully sent message")
                 break
         
     def __str__(self):
@@ -533,110 +542,3 @@ class Manager(object):
         if self.__dict__.get("SMTP_SERVER"):
             html = "<p>Babysitter SHUTTING DOWN.</p>{}\n".format(self.html())
             self.send_email_with_time(html=html, subject="babysitter.py shutting down")        
-
-
-def init_logger():
-    global logger
-
-    # create logger
-    logger = logging.getLogger("babysitter")
-    logger.setLevel(logging.DEBUG)
-
-    # create console handler for stderr
-    ch_stderr = logging.StreamHandler()
-    ch_stderr.setLevel(logging.INFO)
-    stderr_formatter = logging.Formatter('%(asctime)s %(levelname)s '
-                        '%(message)s', datefmt="%y-%m-%d %H:%M:%S")
-    ch_stderr.setFormatter(stderr_formatter)
-    logger.addHandler(ch_stderr)
-    
-    # create file handler for babysitter.log
-    logfile = os.path.dirname(os.path.realpath(__file__)) + "/../babysitter.log"
-    fh = logging.handlers.RotatingFileHandler(logfile, maxBytes=1E6, backupCount=5)
-    fh.setLevel(logging.DEBUG)
-    fh_formatter = logging.Formatter('%(asctime)s level=%(levelname)s: '
-                        'function=%(funcName)s, thread=%(threadName)s'
-                        '\n   %(message)s')
-    fh.setFormatter(fh_formatter)    
-    logger.addHandler(fh)
-
-
-def _shutdown():
-    logger.info("Shutting down.")
-    logging.shutdown() 
-
-
-def _set_config(manager):
-    ########### EMAIL CONFIG ############################################
-    manager.SMTP_SERVER = ""
-    manager.EMAIL_FROM  = ""
-    manager.EMAIL_TO    = ""
-    manager.USERNAME    = ""
-    manager.PASSWORD    = ""
-
-    ########### DISK SPACE CHECKER ######################################
-    manager.append(DiskSpaceRemaining(threshold=200, path="/"))
-
-    ########### FILES ###################################################
-    # manager.append(File(name="/path/to/file", timeout=120))
-        
-    ########### POWERDATA ###############################################
-    manager.load_powerdata(directory=os.environ.get("DATA_DIR"),
-                         numeric_subdirs=True,
-                         timeout=300)
-    
-    ########### PROCESSES ###############################################
-    restart_command = ("nohup " +
-                       os.path.realpath(
-                          os.environ.get("RFM_ECOMANAGER_LOGGER_DIR")) + 
-                       "/rfm_ecomanager_logger/rfm_ecomanager_logger.py")
-    
-    manager.append(Process(name="rfm_ecomanager_logger.py",
-                        restart_command=restart_command))
-
-    ########### FILEGROWS ###############################################
-    # manager.append(FileGrows("cron.log"))
-    
-    ########### HEARTBEAT ###############################################
-    powerstats_dir = os.path.realpath(os.environ.get("POWERSTATS_DIR"))
-    manager.heartbeat.hour = 6 # 24hr clock
-    manager.heartbeat.cmd = (powerstats_dir +
-                          "/powerstats/powerstats.py --html --cache")
-    manager.heartbeat.html_file = (powerstats_dir + "/html/index.html")
-    manager.heartbeat.last_checked = datetime.datetime.now().hour
-    
-
-def main():
-    init_logger()
-    logger.debug('MAIN: babysitter.py starting up. Unixtime = {:.0f}'
-                  .format(time.time()))
-
-    # register SIGINT and SIGTERM handler
-    logger.info("MAIN: setting signal handlers")
-
-    # Python registers SIGINT but not SIGTERM. So use the same
-    # sig handler for SIGINT for SIGTERM.  This allows us to 
-    # clean up even when the code is terminated with kill or killall.
-    signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))
-
-    # Wrap manager.run() in a "try... except" block so we
-    # can gracefully catch KeyboardInterrupt exceptions or we
-    # can send any unexpected exceptions to logger.
-    try:
-        manager = Manager()
-        _set_config(manager)
-        manager.run()
-    except KeyboardInterrupt:
-        manager.shutdown()
-        _shutdown()
-    except SystemExit, e:
-        _shutdown()
-        logger.error(e)
-        sys.exit(e)    
-    except:
-        logger.exception("")
-        _shutdown()
-        raise
-
-if __name__ == "__main__":
-    main()

@@ -5,8 +5,8 @@
 *.log
 *.log.*
 
-email_config.xml
 nohup.out
 babysitter.egg-info/
 build/
+email_config.py
 
