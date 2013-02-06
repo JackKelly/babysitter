@@ -409,6 +409,10 @@ class Manager(object):
             
         data_dir = os.path.realpath(directory)
         
+        if not os.path.isdir(data_dir):
+            log.critical("{} is not a directory!".format(data_dir))
+            sys.exit(1)
+        
         # process numeric_subdirs
         if numeric_subdirs:
             # find the highest number data_dir
@@ -422,17 +426,18 @@ class Manager(object):
         # load labels
         labels_filename = data_dir + "/labels.dat"
         log.info("Opening {} file".format(labels_filename))
-        MAX_RETRIES = 5
+        MAX_RETRIES = 10
         for retry in range(MAX_RETRIES):
             try:
                 labels_file = open(labels_filename)
             except IOError: # file not found
                 if retry == MAX_RETRIES-1: # run out of retries
-                    log.critical("Failed to open {} after {} attempts."
-                                 .format(labels_filename, MAX_RETRIES))
+                    log.critical("Failed to open labels.dat after {} attempts."
+                                 .format(MAX_RETRIES))
+                    sys.exit(1)
                 else:
-                    log.info("Failed to open {}. Retrying...".format(labels_filename))
-                    sleep(1)
+                    log.info("Failed to open labels.dat. Retry {}/{}".format(retry+2, MAX_RETRIES))
+                    time.sleep(1)
             else:
                 lines = labels_file.readlines()
                 labels_file.close()
