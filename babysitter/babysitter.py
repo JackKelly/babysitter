@@ -309,7 +309,7 @@ class HeartBeat(object):
         self.hour = None
         self.cmd = None
         self.html_file = None
-        self.last_checked = None
+        self.last_checked = datetime.datetime.now().hour
 
     
 class Manager(object):
@@ -318,6 +318,12 @@ class Manager(object):
     def __init__(self):
         self.checkers = []
         self.heartbeat = HeartBeat()
+        self.SMTP_SERVER = ""
+        self.EMAIL_FROM  = ""
+        self.EMAIL_TO    = ""
+        self.USERNAME    = ""
+        self.PASSWORD    = ""
+        
         # Python registers SIGINT but not SIGTERM. So use the same
         # sig handler for SIGINT for SIGTERM.  This allows us to 
         # clean up even when the code is terminated with kill or killall.
@@ -365,7 +371,7 @@ class Manager(object):
         return need_to_send
     
     def _send_heartbeat(self):
-        msg = None
+        msg = ""
         if self.heartbeat.cmd:
             log.info("Attempting to run heartbeat command {}"
                         .format(self.heartbeat.cmd))

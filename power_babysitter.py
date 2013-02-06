@@ -70,7 +70,7 @@ def _shutdown():
 
 def _set_config(manager):
     ########### EMAIL CONFIG ############################################
-    manager.SMTP_SERVER = email_config.SMTP_SERVER 
+    manager.SMTP_SERVER = email_config.SMTP_SERVER
     manager.EMAIL_FROM  = email_config.EMAIL_FROM
     manager.EMAIL_TO    = email_config.EMAIL_TO
     manager.USERNAME    = email_config.USERNAME
@@ -115,7 +115,6 @@ def _set_config(manager):
     manager.heartbeat.cmd = (powerstats_dir +
                           "/powerstats/powerstats.py --html --cache")
     manager.heartbeat.html_file = (powerstats_dir + "/html/index.html")
-    manager.heartbeat.last_checked = datetime.datetime.now().hour
     
 
 def main():
