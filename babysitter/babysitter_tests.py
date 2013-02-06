@@ -47,15 +47,6 @@ class TestLoadConfig(unittest.TestCase):
         print(self.manager.checkers[0])                
         
     def test_heartbeat(self):
-        xml = """
-        <config>
-            <heartbeat>
-                <hour>8</hour>
-                <cmd>ls</cmd>
-                <html_file>index.html</html_file>
-            </heartbeat>        
-        </config>
-        """
         self.manager.heartbeat.hour = 8
         self.manager.heartbeat.cmd = "ls"
         self.manager.heartbeat.html_file = "index.html"
@@ -70,8 +61,7 @@ class TestLoadConfig(unittest.TestCase):
         self.manager.heartbeat.hour = 8
         self.assertEqual(self.manager.heartbeat.hour, 8)
         
-        self._run_heartbeat_tests()          
-    
+        self._run_heartbeat_tests()
     
     def _run_heartbeat_tests(self):
         # test need_to_send by mocking up times
