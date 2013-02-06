@@ -22,23 +22,10 @@ import sys
     
     Script for monitoring disk space, multiple files and multiple processes.
     If errors are found then an email is sent.
-    Configuration is stored in a babysitter_config.xml file.
-    Copy babysitter_config.example.xml to babysitter_config.xml and edit.
      
 
 ***********************************
 ********* REQUIREMENTS ************ 
-    
-    Edit babysitter_config.xml to your requirements.
-    
-    Create an email_config.xml file with your email server details like this:
-    <config>
-        <smtp_server></smtp_server>
-        <email_from></email_from>
-        <email_to></email_to>
-        <username></username>
-        <password></password>
-    </config>
     
     ----------------------------------
     If you want to be able to re-start the Network Time Protocol Daemon
@@ -71,24 +58,21 @@ class Checker:
 
     def __init__(self, name):
         self.name = name
-        self.last_state = self.state
+        self.last_state = self.state()
 
-    @abstractproperty
+    @abstractmethod
     def state(self):
         pass
     
-    @property
     def state_as_str(self):
         return html_to_text(self.state_as_html)
     
-    @property
     def state_as_html(self):
         return ['<span style=\"color:red\">FAIL</span>',
-                '<span style=\"color:green\">OK</span>'][self.state]
+                '<span style=\"color:green\">OK</span>'][self.state()]
     
-    @property
     def just_changed_state(self):
-        state = self.state # cache to avoid probs if this changes under us        
+        state = self.state() # cache to avoid probs if this changes under us        
         if state == self.last_state:
             return False
         elif state == FAIL:
@@ -107,7 +91,7 @@ class Checker:
 
     def html(self):
         return '{}={}{}'.format(self.name.rpartition('/')[2], # remove path
-                                self.state_as_html,
+                                self.state_as_html(),
                                 self.extra_text())
 
 
@@ -128,7 +112,6 @@ class Process(Checker):
         self.restart_command = None
         super(Process, self).__init__(name)
 
-    @property
     def pid(self):
         pid_string = subprocess.check_output(['pidof', '-x', self.name])
         return pid_string.strip()
@@ -138,24 +121,25 @@ class Process(Checker):
             logger.info("No restart string for {}".format(self.name))
             return
         
-        if self.state == OK:
+        if self.state() == OK:
             return
         
         logger.info("Attempting to restart {}".format(self.name))
         try:
-            p=subprocess.Popen(self.restart_command.split(), stderr=subprocess.PIPE)
+            p = subprocess.Popen(self.restart_command.split(),
+                                 stderr=subprocess.PIPE)
         except Exception:
             logger.exception("Failed to restart. {}".format(self))
         else:
             if p.poll(): # process has already terminated
-                logger.warn("Process {} has terminated already. stderr={}".format(self, p.stderr.read()))
+                logger.warn("Process {} has terminated already. stderr={}"
+                            .format(self, p.stderr.read()))
             else:
                 logger.info("Successfully restarted. {}".format(self) )
 
-    @property
     def state(self):
         try:
-            self.pid
+            self.pid()
         except subprocess.CalledProcessError:
             return FAIL
         else:
@@ -175,15 +159,12 @@ class File(Checker):
         self.appliance = label        
         super(File, self).__init__(name)
 
-    @property
     def state(self):
-        return self.seconds_since_modified < self.timeout     
+        return self.seconds_since_modified() < self.timeout     
 
-    @property
     def seconds_since_modified(self):
-        return time.time() - self.last_modified
+        return time.time() - self.last_modified()
 
-    @property        
     def last_modified(self):
         try:
             t = os.path.getmtime(self.name)
@@ -198,7 +179,7 @@ class File(Checker):
             
         if os.path.exists(self.name):
             msg += ", last modified {:.1f}s ago.".format(
-                                               self.seconds_since_modified)
+                                               self.seconds_since_modified())
         else:
             msg += ", does not exist!"
             
@@ -214,18 +195,16 @@ class FileGrows(Checker):
             name (str) : including full path
         """
         self.name = name
-        self.last_size = self.size
+        self.last_size = self.size()
         super(FileGrows, self).__init__(name)
 
-    @property
     def state(self):
-        if self.size == self.last_size:
+        if self.size() == self.last_size:
             return OK
         else:
-            self.last_size = self.size
+            self.last_size = self.size()
             return FAIL 
     
-    @property        
     def size(self):
         try:
             s = os.path.getsize(self.name)
@@ -234,7 +213,7 @@ class FileGrows(Checker):
         return s 
     
     def extra_text(self):
-        msg = ", size {} bytes.".format(self.size)
+        msg = ", size {} bytes.".format(self.size())
         return msg
 
 
@@ -248,46 +227,42 @@ class DiskSpaceRemaining(Checker):
         """
         self.threshold = int(threshold)
         self.path = path
-        self.initial_space_remaining = self.available_space
+        self.initial_space_remaining = self.available_space()
         self.initial_time = datetime.datetime.now()
         super(DiskSpaceRemaining, self).__init__('disk space')
         
-    @property
     def state(self):
-        return self.available_space > self.threshold 
+        return self.available_space() > self.threshold 
         
-    @property
     def available_space(self):
         """Returns available disk space in MBytes."""
         # From http://stackoverflow.com/a/787832/732596
         s = os.statvfs(self.path)
         return (s.f_bavail * s.f_frsize) / 1024**2
     
-    @property
     def space_decay_rate(self):
         """Returns rate at which space is diminishing in MByte per second.
         -ve denotes decreasing disk space."""
         dt = (datetime.datetime.now() - self.initial_time).total_seconds() # delta t
-        ds = self.available_space - self.initial_space_remaining # delta space
+        ds = self.available_space() - self.initial_space_remaining # delta space
         return ds / dt
     
-    @property
     def time_until_full(self):
         """Returns time delta object for time until disk is full."""
         if ((datetime.datetime.now() - self.initial_time).total_seconds() > UPDATE_PERIOD
-            and self.space_decay_rate < 0):
-            secs_until_full = self.available_space / -self.space_decay_rate 
+            and self.space_decay_rate() < 0):
+            secs_until_full = self.available_space() / -self.space_decay_rate() 
             return datetime.timedelta(seconds=secs_until_full)
     
     def extra_text(self):
-        msg = ", remaining={:.0f} MB".format(self.available_space)
-        
-        if self.time_until_full:
+        msg = ", remaining={:.0f} MB".format(self.available_space())
+        time_until_full = self.time_until_full()
+        if time_until_full:
             msg += (", time until full={:d}days {:d}hrs {:d}mins"
-                    .format(self.time_until_full.days,
-                            self.time_until_full.seconds // 3600, 
-                            self.time_until_full.seconds //   60))
-            msg += ", full on {}".format((datetime.datetime.now() + self.time_until_full)
+                    .format(time_until_full.days,
+                            time_until_full.seconds // 3600, 
+                            time_until_full.seconds //   60))
+            msg += ", full on {}".format((datetime.datetime.now() + time_until_full)
                                          .strftime("%d/%m/%y %H:%M"))
 
         return msg    
