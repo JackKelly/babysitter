@@ -327,7 +327,7 @@ class Manager(object):
         # Python registers SIGINT but not SIGTERM. So use the same
         # sig handler for SIGINT for SIGTERM.  This allows us to 
         # clean up even when the code is terminated with kill or killall.
-        signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))
+        signal.signal(signal.SIGTERM, signal.default_int_handler)
         
     def append(self, checker):
         self.checkers.append(checker)
