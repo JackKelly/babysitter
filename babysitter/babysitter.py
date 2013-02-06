@@ -29,6 +29,17 @@ import sys
 ***********************************
 ********* REQUIREMENTS ************ 
     
+    Edit babysitter_config.xml to your requirements.
+    
+    Create an email_config.xml file with your email server details like this:
+    <config>
+        <smtp_server></smtp_server>
+        <email_from></email_from>
+        <email_to></email_to>
+        <username></username>
+        <password></password>
+    </config>
+    
     ----------------------------------
     If you want to be able to re-start the Network Time Protocol Daemon
     if it fails then follow these steps:
@@ -390,8 +401,9 @@ class Manager(object):
         self._email_html_file(subject='Babysitter heartbeat', 
                               filename=self._heartbeat.get('html_file'),
                               extra_text=msg)
-            
-    def load_config(self, config_file):
+    
+    
+    def load_email_config(self, config_file):
         try:
             config_tree = ET.parse(config_file)
         except IOError:
@@ -407,7 +419,16 @@ class Manager(object):
         self.PASSWORD    = config_tree.findtext("password")
     
         logger.debug('\nSMTP_SERVER={}\nEMAIL_FROM={}\nEMAIL_TO={}'
-                     .format(self.SMTP_SERVER, self.EMAIL_FROM, self.EMAIL_TO))
+                     .format(self.SMTP_SERVER, self.EMAIL_FROM, self.EMAIL_TO))        
+    
+    
+    def load_config(self, config_file):
+        try:
+            config_tree = ET.parse(config_file)
+        except IOError:
+            msg = "Cannot open {}".format(config_file)
+            logger.critical(msg)
+            sys.exit(msg)
     
         # Disk space checker
         disk_space_threshold_etree = config_tree.find("disk_space")
@@ -653,14 +674,16 @@ def main():
     # can send any unexpected exceptions to logger.
     try:
         manager = Manager()
-        manager.load_config(os.path.dirname(os.path.realpath(__file__)) 
-                            + "/../babysitter_config.xml")    
+        config_file_path = os.path.dirname(os.path.realpath(__file__)) + "/../"
+        manager.load_email_config(config_file_path + "email_config.xml")
+        manager.load_config(config_file_path + "babysitter_config.xml")
         manager.run()
     except KeyboardInterrupt:
         manager.shutdown()
         _shutdown()
     except SystemExit, e:
         _shutdown()
+        logger.error(e)
         sys.exit(e)    
     except:
         logger.exception("")
