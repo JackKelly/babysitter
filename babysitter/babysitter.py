@@ -329,7 +329,6 @@ class Manager(object):
         # sig handler for SIGINT for SIGTERM.  This allows us to 
         # clean up even when the code is terminated with kill or killall.
         signal.signal(signal.SIGTERM, signal.default_int_handler)
-        
         atexit.register(self.shutdown)
         
     def append(self, checker):
@@ -338,6 +337,8 @@ class Manager(object):
                                                      self.checkers[-1]))
         
     def run(self):
+        """The main loop.  This continually checks the state of each checker
+        and sends an email if any checker changes state.  Also sends hearbeat."""
         self._send_heartbeat()
         
         while True:       
