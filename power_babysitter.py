@@ -32,8 +32,7 @@ ENVIRONMENT VARIABLES
 
 The following environment variables must be set:
  - DATA_DIR
- - RFM_ECOMANAGER_LOGGER_DIR
- - POWERSTATS_DIR
+ - LOGGER_BASE_DIR
 
 """
 
@@ -83,20 +82,21 @@ def _set_config(manager):
         log.critical("You must set the DATA_DIR environment variable")
         sys.exit(1)
         
-    manager.load_powerdata(directory=data_dir,
-                         numeric_subdirs=True,
-                         timeout=300)
+    data_dir = manager.load_powerdata(directory=data_dir,
+                                      numeric_subdirs=True,
+                                      timeout=300)
 
     ########### PROCESSES ###############################################
     
-    rfm_ecomanager_logger_dir = os.environ.get("RFM_ECOMANAGER_LOGGER_DIR")
-    if not rfm_ecomanager_logger_dir:
-        log.critical("You must set the RFM_ECOMANAGER_LOGGER_DIR environment variable")
+    logger_base_dir = os.environ.get("LOGGER_BASE_DIR")
+    if not logger_base_dir:
+        log.critical("You must set the LOGGER_BASE_DIR environment variable")
         sys.exit(1)
     
-    restart_command = ("nohup " +
-                       os.path.realpath(rfm_ecomanager_logger_dir) + 
-                       "/rfm_ecomanager_logger/rfm_ecomanager_logger.py")
+    logger_base_dir = os.path.realpath(logger_base_dir)
+    
+    restart_command = ("nohup " + logger_base_dir + 
+                       "/rfm_ecomanager_logger/rfm_ecomanager_logger/rfm_ecomanager_logger.py")
     
     manager.append(Process(name="rfm_ecomanager_logger.py",
                         restart_command=restart_command))
@@ -105,11 +105,10 @@ def _set_config(manager):
     # manager.append(FileGrows("cron.log"))
     
     ########### HEARTBEAT ###############################################
-    powerstats_dir = os.path.realpath(os.environ.get("POWERSTATS_DIR"))
     manager.heartbeat.hour = 6 # 24hr clock
-    manager.heartbeat.cmd = (powerstats_dir +
-                          "/powerstats/powerstats.py --html --cache")
-    manager.heartbeat.html_file = (powerstats_dir + "/html/index.html")
+    manager.heartbeat.cmd = (logger_base_dir +
+                          "/powerstats/powerstats/powerstats.py --html --cache")
+    manager.heartbeat.html_file = (data_dir + "/html/index.html")
     
 
 def main():

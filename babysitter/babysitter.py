@@ -400,6 +400,22 @@ class Manager(object):
                               extra_text=msg)
         
     def load_powerdata(self, directory, numeric_subdirs, timeout):
+        """
+        Process a REDD-formatted power data directory (such as recorded by
+        rfm_ecomanager_logger).
+        
+        Parameters:
+            - directory (str): if numeric_subdirs==True then directory is the
+              base directory containing numerically named data directories.
+              Else directory is the full data directory.
+              
+            - numeric_subdirs (bool)
+            
+            - timeout (int)
+        
+        Returns the full data directory
+        """
+        
         log.info("Loading powerdata... waiting 10 seconds for labels.dat")
         
         # Instantiate data_dir
@@ -448,6 +464,8 @@ class Manager(object):
                     file_name = data_dir + "/channel_{:d}.dat".format(chan)
                     self.append(File(file_name, timeout, label))
                 break
+            
+        return data_dir
         
     def _email_html_file(self, subject, filename, extra_text=None):
             
