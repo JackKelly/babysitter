@@ -305,10 +305,15 @@ def html_to_text(html):
     return html
 
 
+def text_to_html(text):
+    html = "<p>" + text.replace("\n", "</p>\n<p>") + "</p"
+    return html
+
+
 class HeartBeat(object):
     def __init__(self):
         self.hour = None
-        self.cmd = None
+        self.cmd = []
         self.html_file = None
         self.last_checked = datetime.datetime.now().hour
 
@@ -375,27 +380,39 @@ class Manager(object):
         return need_to_send
     
     def _send_heartbeat(self):
-        msg = ""
-        if self.heartbeat.cmd:
+        msg = self.html()
+        for cmd, send_stdout in self.heartbeat.cmd:
+            msg += "<hr>\n"
             log.info("Attempting to run heartbeat command {}"
-                        .format(self.heartbeat.cmd))
+                        .format(cmd))
             try:
-                p = subprocess.Popen(self.heartbeat.cmd.split(), stderr=subprocess.PIPE)
+                p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 p.wait()
             except Exception:
-                msg = "<p><span style=\"color:red\">Failed to run {}</span></p>\n".format(self.heartbeat.cmd)
+                msg += "<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n".format(cmd)
                 log.exception(html_to_text(msg))
             else:
                 if p.returncode == 0:
-                    msg = "<p>Successfully ran {}</p>\n".format(self.heartbeat.cmd)
+                    msg += "<h2>Successfully ran <code>{}</code></h2>\n".format(cmd)
                     log.info(html_to_text(msg))
                 else:
-                    msg = "<p><span style=\"color:red\">Failed to run {}<br/>\n".format(self.heartbeat.cmd)
-                    msg += "stderr: {}</span></p>\n".format(p.stderr.read())
+                    msg += "<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n".format(cmd)
                     log.warn(html_to_text(msg))
 
-        msg = self.html() + msg
-
+                stderr = p.stderr.read()
+                stdout = p.stdout.read()                
+                
+                if (send_stdout or stderr) and stdout:
+                    msg += "<h3>stdout</h3>\n <pre>{}</pre>\n".format(stdout)
+                    log.info("stdout:\n{}".format(stdout))
+                    
+                if stderr:
+                    msg += "<h3 style=\"color:red\">stderr</h3>\n"
+                    msg += "<pre style=\"color:red\">{}</pre>\n".format(stderr)
+                    log.warn("stderr:\n{}".format(stderr))
+        
+        msg += "<hr>\n"
+        
         self._email_html_file(subject='Babysitter heartbeat', 
                               filename=self.heartbeat.html_file,
                               extra_text=msg)
