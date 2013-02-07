@@ -4,7 +4,6 @@ import logging
 log = logging.getLogger("babysitter")
 import os
 from babysitter import Manager, DiskSpaceRemaining, Process, FileGrows, File
-import datetime
 import time
 import sys
 import email_config
