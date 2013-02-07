@@ -109,7 +109,7 @@ def _set_config(manager):
                                   "/rfm_ecomanager_logger/rfm_ecomanager_logger.log",
                                   True))    
     manager.heartbeat.cmd.append((logger_base_dir +
-                          "/powerstats/powerstats/powerstats.py --html --cache", False))
+                          "/powerstats/powerstats/powerstats.py --numeric-subdirs --html --cache", False))
     
     manager.heartbeat.html_file = (data_dir + "/html/index.html")
     
