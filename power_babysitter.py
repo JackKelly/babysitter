@@ -106,10 +106,11 @@ def _set_config(manager):
     ########### HEARTBEAT ###############################################
     manager.heartbeat.hour = 6 # 24hr clock
     manager.heartbeat.cmd.append(("tail -n 50 " + logger_base_dir +
-                                  "/rfm_ecomanager_logger/rfm_ecomanager_logger.log",
-                                  True))    
+                      "/rfm_ecomanager_logger/rfm_ecomanager_logger.log",
+                      True)) # second argument switches output of stdout
     manager.heartbeat.cmd.append((logger_base_dir +
-                          "/powerstats/powerstats/powerstats.py --numeric-subdirs --html --cache", False))
+                      "/powerstats/powerstats/powerstats.py --numeric-subdirs --html --cache",
+                      True)) # second argument switches output of stdout
     
     manager.heartbeat.html_file = (data_dir + "/html/index.html")
     
