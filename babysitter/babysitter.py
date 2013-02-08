@@ -383,33 +383,33 @@ class Manager(object):
         msg = self.html()
         for cmd, send_stdout in self.heartbeat.cmd:
             msg += "<hr>\n"
-            log.info("Attempting to run heartbeat command {}"
-                        .format(cmd))
+            log.info("Attempting to run heartbeat command {}".format(cmd))
             try:
                 p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 p.wait()
             except Exception:
-                msg += "<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n".format(cmd)
-                log.exception(html_to_text(msg))
+                m = "<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n".format(cmd)
+                msg += m
+                log.exception(html_to_text(m))
             else:
                 if p.returncode == 0:
-                    msg += "<h2>Successfully ran <code>{}</code></h2>\n".format(cmd)
-                    log.info(html_to_text(msg))
+                    m = "<h2>Successfully ran <code>{}</code></h2>\n".format(cmd)
+                    msg += m
+                    log.info(html_to_text(m))
                 else:
-                    msg += "<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n".format(cmd)
-                    log.warn(html_to_text(msg))
+                    m = "<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n".format(cmd)
+                    msg += m
+                    log.warn(html_to_text(m))
 
                 stderr = p.stderr.read()
                 stdout = p.stdout.read()                
                 
                 if (send_stdout or stderr) and stdout:
                     msg += "<h3>stdout</h3>\n <pre>{}</pre>\n".format(stdout)
-                    log.info("stdout:\n{}".format(stdout))
                     
                 if stderr:
                     msg += "<h3 style=\"color:red\">stderr</h3>\n"
                     msg += "<pre style=\"color:red\">{}</pre>\n".format(stderr)
-                    log.warn("stderr:\n{}".format(stderr))
         
         msg += "<hr>\n"
         
