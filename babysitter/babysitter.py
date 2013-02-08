@@ -58,11 +58,14 @@ class Checker:
 
     def __init__(self, name):
         self.name = name
-        self.last_state = self.state()
+        self.update_last_state()
 
     @abstractmethod
     def state(self):
         pass
+    
+    def update_last_state(self):
+        self.last_state = self.state()        
     
     def state_as_str(self):
         return html_to_text(self.state_as_html)
@@ -344,8 +347,15 @@ class Manager(object):
     def run(self):
         """The main loop.  This continually checks the state of each checker
         and sends an email if any checker changes state.  Also sends hearbeat."""
+        
+        # Loop through all checkers to do an initial state check
+        for checker in self.checkers:
+            checker.update_last_state()
+
+        # Send initial heartbeat
         self._send_heartbeat()
         
+        # Main loop
         while True:       
             html = ""
             for checker in self.checkers:
