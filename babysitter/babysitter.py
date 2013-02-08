@@ -435,6 +435,7 @@ class Manager(object):
         """
         
         log.info("Loading powerdata... waiting 10 seconds for labels.dat")
+        time.sleep(10)
         
         # Instantiate data_dir
         if not directory:
