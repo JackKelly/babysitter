@@ -83,7 +83,7 @@ def _set_config(manager):
         
     data_dir = manager.load_powerdata(directory=data_dir,
                                       numeric_subdirs=True,
-                                      timeout=300)
+                                      timeout=500)
 
     ########### PROCESSES ###############################################
     
