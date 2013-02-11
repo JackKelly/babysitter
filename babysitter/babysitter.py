@@ -20,27 +20,38 @@ import atexit
 ***********************************
 ********* DESCRIPTION *************
     
-    Script for monitoring disk space, multiple files and multiple processes.
-    If errors are found then an email is sent.
+Script for monitoring disk space, multiple files and multiple processes.
+If errors are found then an email is sent.
      
 
 ***********************************
 ********* REQUIREMENTS ************ 
     
-    ----------------------------------
-    If you want to be able to re-start the Network Time Protocol Daemon
-    if it fails then follow these steps:
+EMAIL CONFIG
+------------
+
+Create an email_config.py in the following format:
+
+SMTP_SERVER = "smtp.mydomain.com"
+EMAIL_FROM  = "logger@mydomain.com"
+EMAIL_TO    = ["me@me.com", "someone-else@them.com"]
+USERNAME    = "smtp-username"
+PASSWORD    = "let-me-in"
+
     
-    SETUP SUDO FOR service restart ntp
-    ----------------------------------
-        
-        This Python script needs to be able to run 'service restart ntp'
-        without requiring a password.  Follow these steps:
-        
-        1. run 'sudo visudo'
-        2. add the following line: 
-           'USER   ALL=NOPASSWD: /usr/sbin/service ntp *'
-           (replace USER with your unix username!) 
+----------------------------------
+If you want to be able to re-start the Network Time Protocol Daemon
+if it fails then follow these steps:
+
+SETUP SUDO FOR service restart ntp:
+    
+    This Python script needs to be able to run 'service restart ntp'
+    without requiring a password.  Follow these steps:
+    
+    1. run 'sudo visudo'
+    2. add the following line: 
+       'USER   ALL=NOPASSWD: /usr/sbin/service ntp *'
+       (replace USER with your unix username!) 
 
 """
 
@@ -539,7 +550,7 @@ class Manager(object):
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
         msg['From'] =  me
-        msg['To'] = self.EMAIL_TO
+        msg['To'] = ", ".join(self.EMAIL_TO)
         
         msg.attach(MIMEText(html_to_text(html), 'plain'))        
         msg.attach(MIMEText(html, 'html'))        
@@ -570,9 +581,8 @@ class Manager(object):
                 s.connect(self.SMTP_SERVER)
                 log.debug("logging in as {}".format(self.USERNAME))
                 s.login(self.USERNAME, self.PASSWORD)
-                
                 log.debug("sendmail to {}".format(self.EMAIL_TO))
-                s.sendmail(me, [self.EMAIL_TO], msg.as_string())
+                s.sendmail(me, self.EMAIL_TO, msg.as_string())
                 log.debug("quit")
                 s.quit()
             except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError):

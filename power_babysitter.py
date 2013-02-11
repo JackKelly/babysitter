@@ -9,9 +9,9 @@ import sys
 import email_config
 
 """
-This script takes advantage of the babysitter package.
 This script is both an example of how to use babysitter
 and also babysits rfm_ecomanager_logger.
+
 
 REQUIREMENTS
 ============
@@ -19,19 +19,21 @@ REQUIREMENTS
 EMAIL CONFIG
 ------------
 
-Create an email_config.py file with the following text:
-SMTP_SERVER = ""
-EMAIL_FROM  = ""
-EMAIL_TO    = ""
-USERNAME    = ""
-PASSWORD    = ""
+Create an email_config.py in the following format:
+
+SMTP_SERVER = "smtp.mydomain.com"
+EMAIL_FROM  = "logger@mydomain.com"
+EMAIL_TO    = ["me@me.com", "someone-else@them.com"]
+USERNAME    = "smtp-username"
+PASSWORD    = "let-me-in"
+
 
 ENVIRONMENT VARIABLES
 ---------------------
 
 The following environment variables must be set:
- - DATA_DIR
- - LOGGER_BASE_DIR
+   DATA_DIR
+   LOGGER_BASE_DIR
 
 """
 
