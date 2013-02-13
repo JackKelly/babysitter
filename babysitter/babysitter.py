@@ -535,7 +535,7 @@ class Manager(object):
                     file_name = data_dir + "/channel_{:d}.dat".format(chan)
                     self.append(File(file_name, timeout, label))
                 break
-            
+
         return data_dir
         
     def _email_html_file(self, subject, filename, extra_text=None):
@@ -622,6 +622,9 @@ class Manager(object):
                 time.sleep(2)
             except smtplib.SMTPAuthenticationError:
                 log.exception("SMTP authentication error. Please check username and password in config file.")
+                raise
+            except:
+                log.exception("Error while trying to send email")
                 raise
             else:
                 log.info("Successfully sent message")
