@@ -424,6 +424,7 @@ class Manager(object):
         self.base_data_dir = ""
         self.sub_data_dir = ""
         self.state_change_cmds = [] # Commands to run if state changes
+        self.shutdown_cmds = []
         self.SMTP_SERVER = ""
         self.EMAIL_FROM  = ""
         self.EMAIL_TO    = ""
@@ -722,6 +723,7 @@ class Manager(object):
         if self.__dict__.get("SMTP_SERVER"):
             html = "<p>Babysitter SHUTTING DOWN.</p>{}\n".format(self.html())
             html += run_commands(self.state_change_cmds)
+            html += run_commands(self.shutdown_cmds)
             self.send_email_with_time(html=html, subject="babysitter.py shutting down")
         logging.shutdown() 
                   

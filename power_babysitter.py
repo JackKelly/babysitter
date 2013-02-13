@@ -54,7 +54,7 @@ def init_logger():
     logger.addHandler(ch)
     
     # create file handler (fh) for babysitter.log
-    logfile = os.path.dirname(os.path.realpath(__file__)) + "/babysitter.log"
+    logfile = os.path.dirname(__file__) + "/babysitter.log"
     fh = logging.handlers.RotatingFileHandler(logfile, maxBytes=1E7, backupCount=5)
     fh.setLevel(logging.DEBUG)
     fh_formatter = logging.Formatter("%(asctime)s %(levelname)s" 
@@ -132,6 +132,11 @@ def _set_config(manager):
     ########### COMMANDS TO RUN WHENEVER STATE CHANGES ##################
     manager.state_change_cmds.append(rfm_ecomanager_logger_log_cmd)
     
+    ########### COMMANDS TO RUN AT SHUTDOWN ############################
+    manager.shutdown_cmds.append(
+                       ("tail " + os.path.dirname(__file__) + "/babysitter.log",
+                          True))
+
 
 def main():
     init_logger()
