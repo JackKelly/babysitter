@@ -89,6 +89,8 @@ def _set_config(manager):
                                       timeout=500)
 
     ########### PROCESSES ###############################################
+    # Each process will be monitored.  If it dies then babysitter will attempt
+    # to restart the process and message will be sent.
     
     logger_base_dir = os.environ.get("LOGGER_BASE_DIR")
     if not logger_base_dir:
@@ -121,7 +123,8 @@ def _set_config(manager):
                       "/rfm_ecomanager_logger/cron.log",
                       True))    
     manager.heartbeat.cmds.append((logger_base_dir +
-                      "/powerstats/powerstats/powerstats.py --numeric-subdirs --html --cache",
+                      "/powerstats/powerstats/powerstats.py --numeric-subdirs "
+                      "--data-dir " + data_dir + " --html --cache",
                       True)) # second argument switches output of stdout
     
     manager.heartbeat.html_file = (data_dir + "/html/index.html")

@@ -484,6 +484,9 @@ class Manager(object):
             # Check if a new data subdir has been created
             if self.base_data_dir and self.sub_data_dir:
                 if self._find_last_subdir() != self.sub_data_dir:
+                    self._send_heartbeat("<p>New subdir found so about to restart "
+                                         "babysitter. Below are the last stats "
+                                         "for the old data subdirectory.</p>\n")
                     raise NewDataDirError()
     
             time.sleep(UPDATE_PERIOD)
@@ -498,8 +501,9 @@ class Manager(object):
         self.heartbeat.last_checked = now_hour
         return need_to_send
     
-    def _send_heartbeat(self):
-        msg = self.html()
+    def _send_heartbeat(self, additional_html=""):
+        msg = additional_html
+        msg += self.html()
         msg += run_commands(self.heartbeat.cmds)
         msg += "<hr>\n"
         self._email_html_file(subject='Babysitter heartbeat', 
