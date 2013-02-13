@@ -154,12 +154,12 @@ def main():
             break
         except NewDataDirError:
             log.info("New data directory found. Re-starting babysitter.")
-            del manager
         except:
             log.exception("")
             raise
         else:
             break
+        
 
 if __name__ == "__main__":
     main()

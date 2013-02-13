@@ -487,6 +487,11 @@ class Manager(object):
                     self._send_heartbeat("<p>New subdir found so about to restart "
                                          "babysitter. Below are the last stats "
                                          "for the old data subdirectory.</p>\n")
+                    atexit.register(None) # This is required because the likely
+                    # result of raising a NewDataDirError is to del the existing
+                    # Manager instance and start a new Manager instance. If
+                    # we don't unregister self.shutdown() then the old
+                    # manager instance will not be deleted from memory!
                     raise NewDataDirError()
     
             time.sleep(UPDATE_PERIOD)
@@ -528,7 +533,7 @@ class Manager(object):
         """
         
         log.info("Loading powerdata... waiting 10 seconds for labels.dat")
-        time.sleep(10)
+        # time.sleep(10)
         
         # Instantiate base_data_dir
         if not directory:
