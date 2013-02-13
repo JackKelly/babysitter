@@ -161,6 +161,16 @@ class Process(Checker):
 
 
 class File(Checker):
+    """
+    Attributes:
+        - timeout (int): time in seconds after which this file is 
+                considered overdue.
+        - appliance (str): label
+        - dead_duration (float): number of seconds this file has been
+                dead for.
+    
+    """
+    
     def __init__(self, name, timeout=120, label=""):
         """File constructor
         
@@ -170,11 +180,22 @@ class File(Checker):
                 considered overdue.
         """
         self.timeout = int(timeout)
-        self.appliance = label        
+        self.appliance = label
+        self.dead_duration = 0.0
+        self.output_dead_duration = False
         super(File, self).__init__(name)
+        
+    # Override
+    def just_changed_state(self):
+        # Only output dead_duration if we've just gone from FAIL to OK
+        self.output_dead_duration = self.state()==OK and self.last_state==FAIL
+        return super(File, self).just_changed_state()
 
     def state(self):
-        return self.seconds_since_modified() < self.timeout     
+        s = self.seconds_since_modified() < self.timeout
+        if s == FAIL:
+            self.dead_duration = self.seconds_since_modified()
+        return s
 
     def seconds_since_modified(self):
         return time.time() - self.last_modified()
@@ -194,6 +215,8 @@ class File(Checker):
         if os.path.exists(self.name):
             msg += ", last modified {:.1f}s ago.".format(
                                                self.seconds_since_modified())
+            if self.output_dead_duration:
+                msg += " Was dead for {:.1f}s.".format(self.dead_duration)
         else:
             msg += ", does not exist!"
             
@@ -325,9 +348,10 @@ def text_to_html(text):
 
 
 def run_commands(commands):
-    """Attempts to run shell command 'cmd'.
+    """Attempts to run a list of shell commands and returns stderr 
+    and, optionally stdout.
     
-    Params:
+    Args:
         - commands (list of two-item tuples).
           The two fields in each tuple are: 
             1. cmd (string): A shell command e.g. 'tail -f logfile.log'
