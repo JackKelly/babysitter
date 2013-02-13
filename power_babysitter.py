@@ -123,7 +123,7 @@ def _set_config(manager):
                       "/rfm_ecomanager_logger/cron.log",
                       True))    
     manager.heartbeat.cmds.append((logger_base_dir +
-                      "/powerstats/powerstats/powerstats.py --numeric-subdirs "
+                      "/powerstats/powerstats/powerstats.py "
                       "--data-dir " + data_dir + " --html --cache",
                       True)) # second argument switches output of stdout
     
@@ -134,7 +134,7 @@ def _set_config(manager):
     
     ########### COMMANDS TO RUN AT SHUTDOWN ############################
     manager.shutdown_cmds.append(
-                       ("tail " + os.path.dirname(__file__) + "/babysitter.log",
+                       ("tail -n 50 " + os.path.dirname(__file__) + "/babysitter.log",
                           True))
 
 
