@@ -531,19 +531,24 @@ class Manager(object):
         
         Returns the full data directory
         """
-        
-        log.info("Loading powerdata... waiting 10 seconds for labels.dat")
-        # time.sleep(10)
+                
+        log.info("Loading powerdata...")
         
         # Instantiate base_data_dir
         if not directory:
             log.critical("Directory for power data not set".format(directory))
             sys.exit(1)
-            
+
         self.base_data_dir = os.path.realpath(directory)
         
+        # Wait 5 seconds for logger to init Nanode and create data dir
+        log.info("Waiting 5 seconds for logger to init Nanode...")
+        time.sleep(5)
+        log.info("Done waiting.")
+
+        # Check if the directory exists.
         if not os.path.isdir(self.base_data_dir):
-            log.critical("{} is not a directory!".format(self.base_data_dir))
+            log.critical("Failed to open directory {}!".format(self.base_data_dir))
             sys.exit(1)
         
         # process numeric_subdirs
@@ -559,29 +564,33 @@ class Manager(object):
         # load labels
         labels_filename = full_data_dir + "/labels.dat"
         log.info("Opening {} file".format(labels_filename))
-        MAX_RETRIES = 10
-        for retry in range(MAX_RETRIES):
-            try:
-                labels_file = open(labels_filename)
-            except IOError: # file not found
-                if retry == MAX_RETRIES-1: # run out of retries
-                    log.critical("Failed to open labels.dat after {} attempts."
-                                 .format(MAX_RETRIES))
-                    sys.exit(1)
-                else:
-                    log.info("Failed to open labels.dat. Retry {}/{}"
-                             .format(retry+2, MAX_RETRIES))
-                    time.sleep(1)
-            else:
-                lines = labels_file.readlines()
-                labels_file.close()
-                for line in lines:
-                    line = line.split()
-                    chan = int(line[0])
-                    label = line[1]
-                    file_name = full_data_dir + "/channel_{:d}.dat".format(chan)
-                    self.append(File(file_name, timeout, label))
-                break
+        try:
+            labels_file = open(labels_filename)
+        except IOError: # file not found
+            log.critical("Failed to open labels.dat")
+            sys.exit(1)
+            
+        lines = labels_file.readlines()
+        labels_file.close()
+        
+        # Before instantiating File objects for each channel listed
+        # in labels.dat, wait until WAIT secs has passed since
+        # labels.dat was created.
+        labels_age = time.time() - os.path.getmtime(labels_filename)
+        WAIT = 60 # seconds
+        if labels_age < WAIT:
+            time_to_wait = WAIT - labels_age
+            log.info("Waiting {:.0f} seconds for data files to populate"
+                     .format(time_to_wait))
+            time.sleep(time_to_wait)
+        
+        # Instantiate one File object per line in labels.dat
+        for line in lines:
+            line = line.split()
+            chan = int(line[0])
+            label = line[1]
+            file_name = full_data_dir + "/channel_{:d}.dat".format(chan)
+            self.append(File(file_name, timeout, label))
 
         return full_data_dir
     
@@ -700,7 +709,8 @@ class Manager(object):
         msg = "<h2>CURRENT STATE OF ALL CHECKERS:</h2>\n"
         if self.base_data_dir:
             msg += "<p>Data directory = " + self.base_data_dir
-            msg += "/" + self.sub_data_dir + "</p>\n" 
+            if self.sub_data_dir:
+                msg += "/" + self.sub_data_dir + "</p>\n" 
         msg += "<ul>\n"
         for checker in self.checkers:
             msg += '  <li>{}</li>\n'.format(checker.html())
