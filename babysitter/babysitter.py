@@ -597,7 +597,7 @@ class Manager(object):
             return existing_subdirs[-1]
         
         
-    def _email_html_file(self, subject, filename, extra_text=None):
+    def _email_html_file(self, subject, filename, extra_text=""):
             
         # Load the HTML filename as an ElementTree so we can extract
         # all images and modify the src to include "cid:"
@@ -620,8 +620,9 @@ class Manager(object):
 
         html = ET.tostring(tree.getroot())
         
-        if extra_text:
-            html = html.replace("<body>", "<body>\n{}".format(extra_text))
+        extra_text += "<p>HTML file below = " + filename + "</p>\n"
+        
+        html = html.replace("<body>", "<body>\n{}".format(extra_text))
         
         self.send_email(subject, html, img_files)
         
