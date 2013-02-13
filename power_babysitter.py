@@ -78,7 +78,8 @@ def _set_config(manager):
     # manager.append(File(name="/path/to/file", timeout=120))
         
     ########### POWERDATA ###############################################
-    data_dir = os.environ.get("DATA_DIR")
+    # data_dir = os.environ.get("DATA_DIR")
+    data_dir = "/homes/dk3810/temp/data"
     if not data_dir:
         log.critical("You must set the DATA_DIR environment variable")
         sys.exit(1)
@@ -106,21 +107,27 @@ def _set_config(manager):
     # manager.append(FileGrows("cron.log"))
     
     ########### HEARTBEAT ###############################################
-    manager.heartbeat.hour = 6 # 24hr clock
-    manager.heartbeat.cmd.append(("tail -n 50 " + logger_base_dir +
+    manager.heartbeat.hour = 6 # Hour of each day to send heartbeat (24hr clock)
+    
+    rfm_ecomanager_logger_log_cmd = ("tail -n 50 " + logger_base_dir +
                       "/rfm_ecomanager_logger/rfm_ecomanager_logger.log",
-                      True)) # second argument switches output of stdout
-    manager.heartbeat.cmd.append(("tail " + logger_base_dir + 
+                      True) # second argument switches output of stdout
+    
+    manager.heartbeat.cmds.append(rfm_ecomanager_logger_log_cmd)
+    manager.heartbeat.cmds.append(("tail " + logger_base_dir + 
                       "/rsync/rsync_cron.log",
                       True))
-    manager.heartbeat.cmd.append(("tail " + logger_base_dir + 
+    manager.heartbeat.cmds.append(("tail " + logger_base_dir + 
                       "/rfm_ecomanager_logger/cron.log",
                       True))    
-    manager.heartbeat.cmd.append((logger_base_dir +
+    manager.heartbeat.cmds.append((logger_base_dir +
                       "/powerstats/powerstats/powerstats.py --numeric-subdirs --html --cache",
                       True)) # second argument switches output of stdout
     
     manager.heartbeat.html_file = (data_dir + "/html/index.html")
+    
+    ########### COMMANDS TO RUN WHENEVER STATE CHANGES ##################
+    manager.state_change_cmds.append(rfm_ecomanager_logger_log_cmd)
     
 
 def main():
@@ -134,10 +141,10 @@ def main():
     manager = Manager()
     _set_config(manager)
     
-    WAIT = 60 # seconds
-    log.info("Waiting {} seconds for data files to become available...".format(WAIT))
-    time.sleep(WAIT)
-    log.info("...done waiting.  Now starting manager.run()")
+    #WAIT = 60 # seconds
+    #log.info("Waiting {} seconds for data files to become available...".format(WAIT))
+    #time.sleep(WAIT)
+    #log.info("...done waiting.  Now starting manager.run()")
     
     try:
         manager.run()

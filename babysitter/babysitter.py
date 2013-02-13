@@ -324,10 +324,65 @@ def text_to_html(text):
     return html
 
 
+def run_commands(commands):
+    """Attempts to run shell command 'cmd'.
+    
+    Params:
+        - commands (list of two-item tuples).
+          The two fields in each tuple are: 
+            1. cmd (string): A shell command e.g. 'tail -f logfile.log'
+            2. send_stdout (bool): Set to True if you always want the
+               returned string to include stdout output from the command.
+    
+    Returns:
+        An HTML-formatted string containing any stderr output the command
+        generated plus and stdout output the command generated.
+        stdout output is only output if 'send_stdout' is True
+        or if an error occurred when running the command.
+        
+    """
+    msg = ""
+    for cmd, send_stdout in commands:        
+        msg += "<hr>\n"
+        log.info("Attempting to run command {}".format(cmd))
+        try:
+            p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+            p.wait()
+        except Exception:
+            m = ("<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n"
+                 .format(cmd))
+            msg += m
+            log.exception(html_to_text(m))
+        else:
+            if p.returncode == 0:
+                m = "<h2>Successfully ran <code>{}</code></h2>\n".format(cmd)
+                msg += m
+                log.info(html_to_text(m))
+            else:
+                m = ("<h2 style=\"color:red\">Failed to run <code>{}</code>"
+                     "</h2>\n".format(cmd))
+                msg += m
+                log.warn(html_to_text(m))
+
+            stderr = p.stderr.read()
+            stdout = p.stdout.read()                
+            
+            if (send_stdout or stderr) and stdout:
+                msg += "<h3>stdout</h3>\n <pre>{}</pre>\n".format(stdout)
+                
+            if stderr:
+                msg += "<h3 style=\"color:red\">stderr</h3>\n"
+                msg += "<pre style=\"color:red\">{}</pre>\n".format(stderr)
+
+    return msg
+
+
+
 class HeartBeat(object):
     def __init__(self):
         self.hour = None
-        self.cmd = []
+        self.cmds = [] # list of commands
         self.html_file = None
         self.last_checked = datetime.datetime.now().hour
 
@@ -338,6 +393,7 @@ class Manager(object):
     def __init__(self):
         self.checkers = []
         self.heartbeat = HeartBeat()
+        self.state_change_cmds = [] # Commands to run if state changes
         self.SMTP_SERVER = ""
         self.EMAIL_FROM  = ""
         self.EMAIL_TO    = ""
@@ -369,8 +425,10 @@ class Manager(object):
         # Main loop
         while True:       
             html = ""
+            at_least_one_state_changed = False
             for checker in self.checkers:
                 if checker.just_changed_state():
+                    at_least_one_state_changed = True                    
                     if not html:
                         html += "<h2>STATE CHANGED:</h2>\n<ul>"
                     html += "<li>" + checker.html() + "</li>\n"
@@ -380,10 +438,12 @@ class Manager(object):
                         time.sleep(5)
                         html += "<p>" + checker.html() + "</p>\n"
 
-            if html:
-                html += "</ul>\n<h2>CURRENT STATE OF ALL CHECKERS:</h2>\n" + self.html()
+            if at_least_one_state_changed:
+                html += "</ul>\n" + self.html()
+                html += run_commands(self.state_change_cmds)
                 self.send_email_with_time(html=html,
                                           subject="Babysitter detected state change.")
+                
     
             if self._need_to_send_heartbeat():
                 self._send_heartbeat()
@@ -402,42 +462,12 @@ class Manager(object):
     
     def _send_heartbeat(self):
         msg = self.html()
-        for cmd, send_stdout in self.heartbeat.cmd:
-            msg += "<hr>\n"
-            log.info("Attempting to run heartbeat command {}".format(cmd))
-            try:
-                p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                p.wait()
-            except Exception:
-                m = "<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n".format(cmd)
-                msg += m
-                log.exception(html_to_text(m))
-            else:
-                if p.returncode == 0:
-                    m = "<h2>Successfully ran <code>{}</code></h2>\n".format(cmd)
-                    msg += m
-                    log.info(html_to_text(m))
-                else:
-                    m = "<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n".format(cmd)
-                    msg += m
-                    log.warn(html_to_text(m))
-
-                stderr = p.stderr.read()
-                stdout = p.stdout.read()                
-                
-                if (send_stdout or stderr) and stdout:
-                    msg += "<h3>stdout</h3>\n <pre>{}</pre>\n".format(stdout)
-                    
-                if stderr:
-                    msg += "<h3 style=\"color:red\">stderr</h3>\n"
-                    msg += "<pre style=\"color:red\">{}</pre>\n".format(stderr)
-        
+        msg += run_commands(self.heartbeat.cmds)
         msg += "<hr>\n"
-        
         self._email_html_file(subject='Babysitter heartbeat', 
                               filename=self.heartbeat.html_file,
-                              extra_text=msg)
-        
+                              extra_text=msg)    
+    
     def load_powerdata(self, directory, numeric_subdirs, timeout):
         """
         Process a REDD-formatted power data directory (such as recorded by
@@ -492,7 +522,8 @@ class Manager(object):
                                  .format(MAX_RETRIES))
                     sys.exit(1)
                 else:
-                    log.info("Failed to open labels.dat. Retry {}/{}".format(retry+2, MAX_RETRIES))
+                    log.info("Failed to open labels.dat. Retry {}/{}"
+                             .format(retry+2, MAX_RETRIES))
                     time.sleep(1)
             else:
                 lines = labels_file.readlines()
@@ -515,7 +546,8 @@ class Manager(object):
             tree = ET.parse(filename)
         except:
             log.warn("Failed to open filename {}".format(filename))
-            extra_text += "<p><span style=\"color:red\">Failed to open filename {}</span></p>".format(filename)
+            extra_text += ("<p><span style=\"color:red\">Failed to open "
+                           "filename {}</span></p>".format(filename))
             self.send_email(subject, extra_text)
             return
         
@@ -602,7 +634,8 @@ class Manager(object):
         return msg
     
     def html(self):
-        msg = "<ul>\n"
+        msg = "<h2>CURRENT STATE OF ALL CHECKERS:</h2>\n"
+        msg += "<ul>\n"
         for checker in self.checkers:
             msg += '  <li>{}</li>\n'.format(checker.html())
         msg += "</ul>\n"
@@ -612,6 +645,7 @@ class Manager(object):
         log.info("Shutting down!")
         if self.__dict__.get("SMTP_SERVER"):
             html = "<p>Babysitter SHUTTING DOWN.</p>{}\n".format(self.html())
+            html += run_commands(self.state_change_cmds)
             self.send_email_with_time(html=html, subject="babysitter.py shutting down")
         logging.shutdown() 
                   
