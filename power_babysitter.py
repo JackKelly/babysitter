@@ -75,8 +75,7 @@ def _set_config(manager):
     # manager.append(File(name="/path/to/file", timeout=120))
         
     ########### POWERDATA ###############################################
-    # data_dir = os.environ.get("DATA_DIR")
-    data_dir = "/homes/dk3810/temp/data"
+    data_dir = os.environ.get("DATA_DIR")
     if not data_dir:
         log.critical("You must set the DATA_DIR environment variable")
         sys.exit(1)
