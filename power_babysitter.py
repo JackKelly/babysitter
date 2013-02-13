@@ -3,7 +3,7 @@ from __future__ import print_function, division
 import logging
 log = logging.getLogger("babysitter")
 import os
-from babysitter import Manager, DiskSpaceRemaining, Process, FileGrows, File
+from babysitter import Manager, DiskSpaceRemaining, Process, FileGrows, File, NewDataDirError
 import time
 import sys
 import email_config
@@ -135,22 +135,28 @@ def main():
     log.debug('MAIN: babysitter.py starting up. Unixtime = {:.0f}'
                   .format(time.time()))
 
-    # register SIGINT and SIGTERM handler
-    log.info("MAIN: setting signal handlers")
-
-    manager = Manager()
-    _set_config(manager)
-    
-    #WAIT = 60 # seconds
-    #log.info("Waiting {} seconds for data files to become available...".format(WAIT))
-    #time.sleep(WAIT)
-    #log.info("...done waiting.  Now starting manager.run()")
-    
-    try:
-        manager.run()
-    except KeyboardInterrupt:
-        # Catch this so we don't spit out unwanted errors in the log
-        pass
+    while True:
+        manager = Manager()
+        _set_config(manager)
+        
+        #WAIT = 60 # seconds
+        #log.info("Waiting {} seconds for data files to become available...".format(WAIT))
+        #time.sleep(WAIT)
+        #log.info("...done waiting.  Now starting manager.run()")
+        
+        try:
+            manager.run()
+        except KeyboardInterrupt:
+            # Catch this so we don't spit out unwanted errors in the log
+            break
+        except NewDataDirError:
+            log.info("New data directory found. Re-starting babysitter.")
+            del manager
+        except:
+            log.exception("")
+            raise
+        else:
+            break
 
 if __name__ == "__main__":
     main()

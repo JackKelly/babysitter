@@ -402,7 +402,6 @@ def run_commands(commands):
     return msg
 
 
-
 class HeartBeat(object):
     def __init__(self):
         self.hour = None
@@ -410,13 +409,20 @@ class HeartBeat(object):
         self.html_file = None
         self.last_checked = datetime.datetime.now().hour
 
-    
+
+class NewDataDirError(Exception):
+    """Error raised when a new data directory has been found."""
+    pass
+
+
 class Manager(object):
     """Manages multiple Checker objects."""
-    
+
     def __init__(self):
         self.checkers = []
         self.heartbeat = HeartBeat()
+        self.base_data_dir = ""
+        self.sub_data_dir = ""
         self.state_change_cmds = [] # Commands to run if state changes
         self.SMTP_SERVER = ""
         self.EMAIL_FROM  = ""
@@ -437,7 +443,11 @@ class Manager(object):
         
     def run(self):
         """The main loop.  This continually checks the state of each checker
-        and sends an email if any checker changes state.  Also sends hearbeat."""
+        and sends an email if any checker changes state.  Also sends hearbeat.
+        
+        Raises:
+            NewDataDirError: if a new data directory is identified.
+        """
         
         # Loop through all checkers to do an initial state check
         for checker in self.checkers:
@@ -467,10 +477,14 @@ class Manager(object):
                 html += run_commands(self.state_change_cmds)
                 self.send_email_with_time(html=html,
                                           subject="Babysitter detected state change.")
-                
-    
+
             if self._need_to_send_heartbeat():
                 self._send_heartbeat()
+
+            # Check if a new data subdir has been created
+            if self.base_data_dir and self.sub_data_dir:
+                if self._find_last_subdir() != self.sub_data_dir:
+                    raise NewDataDirError()
     
             time.sleep(UPDATE_PERIOD)
     
@@ -512,29 +526,29 @@ class Manager(object):
         log.info("Loading powerdata... waiting 10 seconds for labels.dat")
         time.sleep(10)
         
-        # Instantiate data_dir
+        # Instantiate base_data_dir
         if not directory:
             log.critical("Directory for power data not set".format(directory))
             sys.exit(1)
             
-        data_dir = os.path.realpath(directory)
+        self.base_data_dir = os.path.realpath(directory)
         
-        if not os.path.isdir(data_dir):
-            log.critical("{} is not a directory!".format(data_dir))
+        if not os.path.isdir(self.base_data_dir):
+            log.critical("{} is not a directory!".format(self.base_data_dir))
             sys.exit(1)
         
         # process numeric_subdirs
         if numeric_subdirs:
-            # find the highest number data_dir
-            existing_subdirs = os.walk(data_dir).next()[1]
-            if existing_subdirs:
-                existing_subdirs.sort()
-                data_dir += "/" + existing_subdirs[-1]
+            self.sub_data_dir = self._find_last_subdir()
                 
-        log.info("data_dir = {}".format(data_dir))
+        full_data_dir = self.base_data_dir
+        if self.sub_data_dir:
+            full_data_dir += "/" + self.sub_data_dir            
+                
+        log.info("full_data_dir = {}".format(full_data_dir))
         
         # load labels
-        labels_filename = data_dir + "/labels.dat"
+        labels_filename = full_data_dir + "/labels.dat"
         log.info("Opening {} file".format(labels_filename))
         MAX_RETRIES = 10
         for retry in range(MAX_RETRIES):
@@ -556,11 +570,23 @@ class Manager(object):
                     line = line.split()
                     chan = int(line[0])
                     label = line[1]
-                    file_name = data_dir + "/channel_{:d}.dat".format(chan)
+                    file_name = full_data_dir + "/channel_{:d}.dat".format(chan)
                     self.append(File(file_name, timeout, label))
                 break
 
-        return data_dir
+        return full_data_dir
+    
+    def _find_last_subdir(self):
+        """Find the highest number self.base_data_dir
+        
+        Returns:
+            String containing highest number subdir.
+        """
+        existing_subdirs = os.walk(self.base_data_dir).next()[1]
+        if existing_subdirs:
+            existing_subdirs.sort()
+            return existing_subdirs[-1]
+        
         
     def _email_html_file(self, subject, filename, extra_text=None):
             
@@ -662,6 +688,9 @@ class Manager(object):
     
     def html(self):
         msg = "<h2>CURRENT STATE OF ALL CHECKERS:</h2>\n"
+        if self.base_data_dir:
+            msg += "<p>Data directory = " + self.base_data_dir
+            msg += "/" + self.sub_data_dir + "</p>\n" 
         msg += "<ul>\n"
         for checker in self.checkers:
             msg += '  <li>{}</li>\n'.format(checker.html())
