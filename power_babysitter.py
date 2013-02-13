@@ -71,9 +71,6 @@ def _set_config(manager):
     manager.USERNAME    = email_config.USERNAME
     manager.PASSWORD    = email_config.PASSWORD
 
-    ########### DISK SPACE CHECKER ######################################
-    manager.append(DiskSpaceRemaining(threshold=200, path="/"))
-
     ########### FILES ###################################################
     # manager.append(File(name="/path/to/file", timeout=120))
         
@@ -87,6 +84,9 @@ def _set_config(manager):
     data_dir = manager.load_powerdata(directory=data_dir,
                                       numeric_subdirs=True,
                                       timeout=500)
+
+    ########### DISK SPACE CHECKER ######################################
+    manager.append(DiskSpaceRemaining(threshold=200, path=data_dir))
 
     ########### PROCESSES ###############################################
     # Each process will be monitored.  If it dies then babysitter will attempt
