@@ -119,7 +119,7 @@ class Process(Checker):
     Attributes:
         name (str): the process name as it appears in `ps -A`
         restart_command (str): the command used to restart this process
-        last_restart_time (float): unix timecode of the last time a restart
+        prev_restart_time (float): unix timecode of the previous time a restart
             was attempted.
         retries (int): numer of times we have tried to restart this process.
             Note that this will be reset to zero if RESET_RETRIES_AFTER seconds
@@ -135,7 +135,7 @@ class Process(Checker):
     """
     
     MAX_RESTART_RETRIES = 5
-    RESET_RETRIES_AFTER = 60 * 60 # seconds
+    RESET_RETRIES_AFTER = 60 * 60 # seconds 
 
     def __init__(self, name, restart_command=None):
         """
@@ -143,7 +143,7 @@ class Process(Checker):
             name (str): the process name as it appears in `ps -A`
         """
         self.restart_command = restart_command
-        self.last_restart_time = 0
+        self.prev_restart_time = 0
         self.retries = 0
         super(Process, self).__init__(name)
 
@@ -164,17 +164,18 @@ class Process(Checker):
             return
         
         if self.retries > Process.MAX_RESTART_RETRIES:
-            msg = "Max restart retries reached!"
+            msg = "Max restart retries reached for " + self.name
             log.warn(msg)
             raise MaxRetriesError(msg)
         
-        log.info("Attempting to restart {}. Retry {}/{}. Last retry time = {}"
-                 .format(self.name, self.retries+1, 
+        log.info("Attempting to restart {}. Retry {}/{}. Previous retry time = {}"
+                 .format(self.name, self.retries, 
                          Process.MAX_RESTART_RETRIES,
-                         datetime.datetime.fromtimestamp(self.last_restart_time)
-                         .strftime('%y-%m-%d %H:%M:%S')))
+                         datetime.datetime.fromtimestamp(self.prev_restart_time)
+                           .strftime('%y-%m-%d %H:%M:%S')
+                           if self.prev_restart_time else "0"))
         
-        self.last_restart_time = time.time()
+        self.prev_restart_time = time.time()
         self.retries += 1
                 
         try:
@@ -200,12 +201,26 @@ class Process(Checker):
         # Reset self.retries if more than RESET_RETRIES_AFTER seconds
         # have elapsed since the last restart.
         if self.retries:
-            secs_since_last_restart = time.time() - self.last_restart_time
-            if secs_since_last_restart > RESET_RETRIES_AFTER:
+            secs_since_last_restart = time.time() - self.prev_restart_time
+            if secs_since_last_restart > Process.RESET_RETRIES_AFTER:
                 log.info("Resetting retries count.")
                 self.retries = 0
                                 
         return state
+    
+    def extra_text(self):
+        msg = ""
+        
+        if self.retries:
+            msg += " Retry {}/{}.".format(self.retries-1, 
+                                         Process.MAX_RESTART_RETRIES)
+               
+        if self.prev_restart_time:
+            dt = datetime.datetime.fromtimestamp(self.prev_restart_time)
+            msg += " Previous retry time = "
+            msg += dt.strftime('%y-%m-%d %H:%M:%S')
+            
+        return msg        
 
 
 class File(Checker):
@@ -478,6 +493,7 @@ class Manager(object):
         self.EMAIL_TO    = ""
         self.USERNAME    = ""
         self.PASSWORD    = ""
+        self.shutdown_reason = ""
         
         # Python registers SIGINT but not SIGTERM. So use the same
         # sig handler for SIGINT for SIGTERM.  This allows us to 
@@ -508,21 +524,23 @@ class Manager(object):
         # Main loop
         while True:       
             html = ""
-            at_least_one_state_changed = False
             for checker in self.checkers:
                 if checker.just_changed_state():
-                    at_least_one_state_changed = True                    
-                    if not html:
-                        html += "<h2>STATE CHANGED:</h2>\n<ul>"
                     html += "<li>" + checker.html() + "</li>\n"
-                    if isinstance(checker, Process) and checker.state() == FAIL:
-                        html += "<p>Attempting to restart...</p>\n"
+                    
+                if isinstance(checker, Process) and checker.state() == FAIL:
+                    html += "<li>Attempting to restart " + checker.name + "...</li>\n"
+                    try:
                         checker.restart()
-                        time.sleep(5)
-                        html += "<p>" + checker.html() + "</p>\n"
+                    except MaxRetriesError, e:
+                        self.shutdown_reason = str(e)
+                        return
+                    time.sleep(5)
+                    html += "<li>State after restart: " + checker.html() + "</li>\n"
 
-            if at_least_one_state_changed:
-                html += "</ul>\n" + self.html()
+            if html:
+                html = "<h2>STATE CHANGED:</h2>\n<ul>\n" + html + "</ul>\n" 
+                html += self.html()
                 html += run_commands(self.state_change_cmds)
                 self.send_email_with_time(html=html,
                                           subject="Babysitter detected state change.")
@@ -768,11 +786,16 @@ class Manager(object):
         return msg
     
     def shutdown(self):
-        log.info("Shutting down!")
         if self.__dict__.get("SMTP_SERVER"):
-            html = "<p>Babysitter SHUTTING DOWN.</p>{}\n".format(self.html())
+            log.info("Sending shutdown email...")
+            html = "<p>Babysitter SHUTTING DOWN.</p>\n"
+            if self.shutdown_reason:
+                html += "<p>Reason for shutdown: "
+                html += self.shutdown_reason + "</p>\n"
+            html += self.html()
             html += run_commands(self.state_change_cmds)
             html += run_commands(self.shutdown_cmds)
             self.send_email_with_time(html=html, subject="babysitter.py shutting down")
+        log.info("Shutting down!")
         logging.shutdown() 
                   
