@@ -9,6 +9,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate
 from abc import ABCMeta, abstractmethod
 import xml.etree.ElementTree as ET # for XML parsing
 import signal
@@ -652,6 +653,7 @@ class Manager(object):
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
         msg['From'] =  me
+        msg['Date'] = formatdate(localtime=True)
         msg['To'] = ", ".join(self.EMAIL_TO)
         
         msg.attach(MIMEText(html_to_text(html), 'plain'))        
