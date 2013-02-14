@@ -109,15 +109,33 @@ class Checker:
                                 self.state_as_html(),
                                 self.extra_text())
 
+class MaxRetriesError(Exception):
+    """We have attempted to restart too many times."""
+    pass
 
 class Process(Checker):
     """Class for monitoring a unix process.
     
     Attributes:
         name (str): the process name as it appears in `ps -A`
-        restart_command (str): the command used to restart this process            
+        restart_command (str): the command used to restart this process
+        last_restart_time (float): unix timecode of the last time a restart
+            was attempted.
+        retries (int): numer of times we have tried to restart this process.
+            Note that this will be reset to zero if RESET_RETRIES_AFTER seconds
+            have passed since the last retry attempt.
+        
+    Static attributes:
+        MAX_RESTART_RETRIES (int): Max number of times to try to restart
+            this process before giving up and quitting.
+
+        RESET_RETRIES_AFTER (int): Seconds since the last retry after which
+            the number of retries will be reset.
     
     """
+    
+    MAX_RESTART_RETRIES = 5
+    RESET_RETRIES_AFTER = 60 * 60 # seconds
 
     def __init__(self, name, restart_command=None):
         """
@@ -125,6 +143,8 @@ class Process(Checker):
             name (str): the process name as it appears in `ps -A`
         """
         self.restart_command = restart_command
+        self.last_restart_time = 0
+        self.retries = 0
         super(Process, self).__init__(name)
 
     def pid(self):
@@ -132,6 +152,10 @@ class Process(Checker):
         return pid_string.strip()
     
     def restart(self):
+        """
+        Raises:
+            MaxRetriesError
+        """
         if self.restart_command is None:
             log.info("No restart string for {}".format(self.name))
             return
@@ -139,7 +163,20 @@ class Process(Checker):
         if self.state() == OK:
             return
         
-        log.info("Attempting to restart {}".format(self.name))
+        if self.retries > Process.MAX_RESTART_RETRIES:
+            msg = "Max restart retries reached!"
+            log.warn(msg)
+            raise MaxRetriesError(msg)
+        
+        log.info("Attempting to restart {}. Retry {}/{}. Last retry time = {}"
+                 .format(self.name, self.retries+1, 
+                         Process.MAX_RESTART_RETRIES,
+                         datetime.datetime.fromtimestamp(self.last_restart_time)
+                         .strftime('%y-%m-%d %H:%M:%S')))
+        
+        self.last_restart_time = time.time()
+        self.retries += 1
+                
         try:
             p = subprocess.Popen(self.restart_command.split(),
                                  stderr=subprocess.PIPE)
@@ -156,9 +193,19 @@ class Process(Checker):
         try:
             self.pid()
         except subprocess.CalledProcessError:
-            return FAIL
+            state = FAIL
         else:
-            return OK
+            state = OK
+            
+        # Reset self.retries if more than RESET_RETRIES_AFTER seconds
+        # have elapsed since the last restart.
+        if self.retries:
+            secs_since_last_restart = time.time() - self.last_restart_time
+            if secs_since_last_restart > RESET_RETRIES_AFTER:
+                log.info("Resetting retries count.")
+                self.retries = 0
+                                
+        return state
 
 
 class File(Checker):
