@@ -6,6 +6,6 @@ See comments at top of `babysitter/babysitter.py` for details.
 
 Also see `power_babysitter.py` for a working example of how to use the babysitter framework.
 `power_babysitter.py` can be used to supervise [`rfm_ecomanager_logger`](https://github.com/JackKelly/rfm_ecomanager_logger)
-and [`powerstats`](https://github.com/JackKelly/powerstats).
+and to produce graphs using [`powerstats`](https://github.com/JackKelly/powerstats).
 
 An alternative would be the [Supervisor](http://supervisord.org/) project.
