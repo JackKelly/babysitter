@@ -1,6 +1,6 @@
 #! /usr/bin/python
 from __future__ import print_function, division
-import logging
+import logging, logging.handlers
 log = logging.getLogger("babysitter")
 import os
 from babysitter import Manager, DiskSpaceRemaining, Process, FileGrows, File, NewDataDirError
