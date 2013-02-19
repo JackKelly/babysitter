@@ -115,7 +115,7 @@ def _set_config(manager):
                       True) # second argument switches output of stdout
     
     manager.heartbeat.cmds.append(rfm_ecomanager_logger_log_cmd)
-    manager.heartbeat.cmds.append(("tail " + logger_base_dir + 
+    manager.heartbeat.cmds.append(("tail -n 75 " + logger_base_dir + 
                       "/rsync/rsync_cron.log",
                       True))
     manager.heartbeat.cmds.append(("tail " + logger_base_dir + 
