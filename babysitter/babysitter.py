@@ -1,7 +1,7 @@
 from __future__ import print_function, division
 import time
 import datetime
-import logging, logging.handlers
+import logging
 log = logging.getLogger("babysitter")
 import subprocess
 import os
@@ -778,7 +778,8 @@ class Manager(object):
         if self.base_data_dir:
             msg += "<p>Data directory = " + self.base_data_dir
             if self.sub_data_dir:
-                msg += "/" + self.sub_data_dir + "</p>\n" 
+                msg += "/" + self.sub_data_dir
+            msg += "</p>\n"
         msg += "<ul>\n"
         for checker in self.checkers:
             msg += '  <li>{}</li>\n'.format(checker.html())
