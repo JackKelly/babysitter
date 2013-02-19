@@ -115,12 +115,16 @@ def _set_config(manager):
                       True) # second argument switches output of stdout
     
     manager.heartbeat.cmds.append(rfm_ecomanager_logger_log_cmd)
-    manager.heartbeat.cmds.append(("tail -n 75 " + logger_base_dir + 
-                      "/rsync/rsync_cron.log",
-                      True))
-    manager.heartbeat.cmds.append(("tail " + logger_base_dir + 
-                      "/rfm_ecomanager_logger/cron.log",
-                      True))    
+    
+    rsync_cron = logger_base_dir + "/rsync/rsync_cron.log" 
+    manager.heartbeat.cmds.append(("tail -n 75 " + rsync_cron + 
+                                   " && date -r " + rsync_cron,
+                                   True))
+    
+    cron = logger_base_dir + "/rfm_ecomanager_logger/cron.log" 
+    manager.heartbeat.cmds.append(("tail " + cron + " && date -r " + cron,                      
+                                   True))
+     
     manager.heartbeat.cmds.append((logger_base_dir +
                       "/powerstats/powerstats/powerstats.py "
                       "--data-dir " + data_dir + " --html --cache",
