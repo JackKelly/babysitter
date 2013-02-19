@@ -16,6 +16,7 @@ import signal
 import re
 import sys
 import atexit
+import socket
 
 """
 ***********************************
@@ -465,6 +466,13 @@ def run_commands(commands):
     return msg
 
 
+def get_ip_address():
+    # from http://commandline.org.uk/python/how-to-find-out-ip-address-in-python/
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(('google.com', 0))
+    return s.getsockname()[0]    
+
+
 class HeartBeat(object):
     def __init__(self):
         self.hour = None
@@ -712,6 +720,8 @@ class Manager(object):
             log.info("Not sending email because no SMTP server configured")
             return
                 
+        html = html + "<p>Local IP address: " + str(get_ip_address()) + "</p>\n"    
+            
         hostname = os.uname()[1]
         me = hostname + '<' + self.EMAIL_FROM + '>'
         
