@@ -440,17 +440,17 @@ def run_commands(commands):
             m = ("<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n"
                  .format(cmd))
             msg += m
-            log.exception(html_to_text(m))
+            log.exception(html_to_text(m).strip())
         else:
             if p.returncode == 0:
                 m = "<h2>Successfully ran <code>{}</code></h2>\n".format(cmd)
                 msg += m
-                log.info(html_to_text(m))
+                log.info(html_to_text(m).strip())
             else:
                 m = ("<h2 style=\"color:red\">Failed to run <code>{}</code>"
                      "</h2>\n".format(cmd))
                 msg += m
-                log.warn(html_to_text(m))
+                log.warn(html_to_text(m).strip())
 
             stderr = p.stderr.read()
             stdout = p.stdout.read()                
@@ -539,9 +539,11 @@ class Manager(object):
             html = ""
             for checker in self.checkers:
                 if checker.just_changed_state():
+                    log.warn("Checker {} has changed state.".format(checker.name))
                     html += "<li>" + checker.html() + "</li>\n"
                     
                 if isinstance(checker, Process) and checker.state() == FAIL:
+                    log.warn("Process {} is not running.".format(checker.name))
                     html += "<li>Attempting to restart " + checker.name + "...</li>\n"
                     try:
                         checker.restart()
@@ -780,7 +782,7 @@ class Manager(object):
                 log.exception("Error while trying to send email")
                 raise
             else:
-                log.info("Successfully sent message")
+                log.info("Successfully sent message\n")
                 break
         
     def __str__(self):
