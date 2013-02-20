@@ -642,7 +642,8 @@ class Manager(object):
         try:
             labels_file = open(labels_filename)
         except IOError: # file not found
-            log.critical("Failed to open labels.dat")
+            self.shutdown_reason = "Failed to open " + labels_filename
+            log.critical(self.shutdown_reason)
             sys.exit(1)
             
         lines = labels_file.readlines()
