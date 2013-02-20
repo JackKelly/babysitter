@@ -751,9 +751,9 @@ class Manager(object):
                     msg.attach(mime_img)
     
         # Send email to SMTP server. Retry if server disconnects.
-        retries = 0
-        while retries < 5:
-            retries += 1
+        retries = 5
+        while retries > 0:
+            retries -= 1
             try:
                 log.debug("SMPT_SSL {}".format(self.SMTP_SERVER))
                 s = smtplib.SMTP_SSL()
@@ -773,7 +773,8 @@ class Manager(object):
                 raise
             except socket.error as e:
                 if e.errno == socket.errno.ECONNREFUSED: # Connection refused
-                    log.warn("WARNING: {}, trying again".format(str(e)))
+                    log.warn("WARNING: {}, retries left={}".format(str(e),
+                                                                   retries))
                 else:
                     log.exception("")
                     raise
