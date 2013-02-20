@@ -74,16 +74,12 @@ def _set_config(manager):
     ########### FILES ###################################################
     # manager.append(File(name="/path/to/file", timeout=120))
         
-    ########### POWERDATA ###############################################
+    ########### SET DATA_DIR ###############################################
     data_dir = os.environ.get("DATA_DIR")
     if not data_dir:
         log.critical("You must set the DATA_DIR environment variable")
         sys.exit(1)
         
-    data_dir = manager.load_powerdata(directory=data_dir,
-                                      numeric_subdirs=True,
-                                      timeout=500)
-
     ########### DISK SPACE CHECKER ######################################
     manager.append(DiskSpaceRemaining(threshold=200, path=data_dir))
 
@@ -139,6 +135,12 @@ def _set_config(manager):
                        ("tail -n 50 " + os.path.dirname(__file__) + "/babysitter.log",
                           True))
 
+    ########### LOAD POWER DATA ########################################
+    # Do this last in case there's a problem.
+    
+    data_dir = manager.load_powerdata(directory=data_dir,
+                                      numeric_subdirs=True,
+                                      timeout=500)    
 
 def main():
     init_logger()
