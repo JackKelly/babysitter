@@ -102,14 +102,28 @@ def _set_config(manager):
 
     ########### FILEGROWS ###############################################
     # manager.append(FileGrows("cron.log"))
-    
-    ########### HEARTBEAT ###############################################
-    manager.heartbeat.hour = 6 # Hour of each day to send heartbeat (24hr clock)
-    
+
+    ########### COMMANDS TO RUN WHENEVER STATE CHANGES ##################
     rfm_ecomanager_logger_log_cmd = ("tail -n 50 " + logger_base_dir +
                       "/rfm_ecomanager_logger/rfm_ecomanager_logger.log",
                       True) # second argument switches output of stdout
     
+    manager.state_change_cmds.append(rfm_ecomanager_logger_log_cmd)
+    
+    ########### COMMANDS TO RUN AT SHUTDOWN ############################
+    manager.shutdown_cmds.append(
+                       ("tail -n 50 " + os.path.dirname(__file__) + "/babysitter.log",
+                          True))
+
+    ########### LOAD POWER DATA ########################################
+    
+    data_dir = manager.load_powerdata(directory=data_dir,
+                                      numeric_subdirs=True,
+                                      timeout=500)
+    
+    ########### HEARTBEAT ###############################################
+    manager.heartbeat.hour = 6 # Hour of each day to send heartbeat (24hr clock)
+        
     manager.heartbeat.cmds.append(rfm_ecomanager_logger_log_cmd)
     
     rsync_cron = logger_base_dir + "/rsync/rsync_cron.log" 
@@ -120,6 +134,11 @@ def _set_config(manager):
     manager.heartbeat.cmds.append(("tail " + cron, True))
     manager.heartbeat.cmds.append(("date -r " + cron, True))
      
+    # Manually provide the --data-dir (instead of allowing powerstats 
+    # to work this out for itself) so we guarantee that powerstats
+    # will always produce data for the same data dir that babysitter
+    # is looking at.  Especially important if babysitter spots a new data
+    # subdir whilst running.
     manager.heartbeat.cmds.append((logger_base_dir +
                       "/powerstats/powerstats/powerstats.py "
                       "--data-dir " + data_dir + " --html --cache",
@@ -127,20 +146,6 @@ def _set_config(manager):
     
     manager.heartbeat.html_file = (data_dir + "/html/index.html")
     
-    ########### COMMANDS TO RUN WHENEVER STATE CHANGES ##################
-    manager.state_change_cmds.append(rfm_ecomanager_logger_log_cmd)
-    
-    ########### COMMANDS TO RUN AT SHUTDOWN ############################
-    manager.shutdown_cmds.append(
-                       ("tail -n 50 " + os.path.dirname(__file__) + "/babysitter.log",
-                          True))
-
-    ########### LOAD POWER DATA ########################################
-    # Do this last in case there's a problem.
-    
-    data_dir = manager.load_powerdata(directory=data_dir,
-                                      numeric_subdirs=True,
-                                      timeout=500)    
 
 def main():
     init_logger()
