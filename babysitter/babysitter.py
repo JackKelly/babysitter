@@ -468,9 +468,16 @@ def run_commands(commands):
 
 def get_ip_address():
     # from http://commandline.org.uk/python/how-to-find-out-ip-address-in-python/
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(('google.com', 0))
-    return s.getsockname()[0]    
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('google.com', 0))
+    except:
+        log.exception("Failed to get IP address.")
+        ip_address = 0
+    else:
+        ip_address = s.getsockname()[0]
+        
+    return ip_address
 
 
 class HeartBeat(object):
