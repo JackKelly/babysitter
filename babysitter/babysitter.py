@@ -16,7 +16,7 @@ import signal
 import re
 import sys
 import atexit
-import socket
+import socket, socket.errno
 
 """
 ***********************************
@@ -768,8 +768,15 @@ class Manager(object):
                 log.exception("")
                 time.sleep(2)
             except smtplib.SMTPAuthenticationError:
-                log.exception("SMTP authentication error. Please check username and password in config file.")
+                log.exception("SMTP authentication error. Please check "
+                              "username and password in email_config.py")
                 raise
+            except socket.error as e:
+                if e.errno == socket.errno.ECONNREFUSED: # Connection refused
+                    log.warn("WARNING: {}, trying again".format(str(e)))
+                else:
+                    log.exception("")
+                    raise
             except:
                 log.exception("Error while trying to send email")
                 raise
