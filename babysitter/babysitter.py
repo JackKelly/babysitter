@@ -766,21 +766,16 @@ class Manager(object):
                 s.sendmail(me, self.EMAIL_TO, msg.as_string())
                 log.debug("quit")
                 s.quit()
-            except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError):
-                log.exception("")
+            except (smtplib.SMTPServerDisconnected,
+                    smtplib.SMTPConnectError,
+                    socket.error): # usually socket.errno.ETIMEDOUT or .ECONNREFUSED
+                log.exception("Exception caught while trying to send email."
+                              " Retries left={}".format(retries))
                 time.sleep(2)
             except smtplib.SMTPAuthenticationError:
                 log.exception("SMTP authentication error. Please check "
                               "username and password in email_config.py")
                 raise
-            except socket.error as e:
-                if e.errno in [socket.errno.ETIMEDOUT,
-                               socket.errno.ECONNREFUSED]:
-                    log.warn("WARNING: {}, retries left={}".format(str(e),
-                                                                   retries))
-                else:
-                    log.exception("")
-                    raise
             except:
                 log.exception("Error while trying to send email")
                 raise
