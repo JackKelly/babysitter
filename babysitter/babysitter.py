@@ -16,7 +16,7 @@ import signal
 import re
 import sys
 import atexit
-import socket, socket.errno
+import socket
 
 """
 ***********************************
