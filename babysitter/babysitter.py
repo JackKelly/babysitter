@@ -150,7 +150,7 @@ class Process(Checker):
     def pid(self):
         pid_string = subprocess.check_output(['pidof', '-x', self.name])
         return pid_string.strip()
-    
+
     def restart(self):
         """
         Raises:

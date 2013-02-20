@@ -152,11 +152,24 @@ def main():
     log.debug('\nMAIN: babysitter.py starting up. Unixtime = {:.0f}'
                   .format(time.time()))
 
-    while True:
+    # Load Manager in a loop so we can reload Manager
+    # if we get a NewDataDirError.
+    MAX_RETRIES = 5
+    retries = 0
+    previous_loop_time = time.time()
+    RESET_AFTER = 60*60 # reset retries after this number of seconds
+    
+    while retries < MAX_RETRIES:
+        if time.time() > previous_loop_time + RESET_AFTER:
+            retries = 0
+        else:
+            retries += 1
+            
         manager = Manager()
         _set_config(manager)
 
         try:
+            previous_loop_time = time.time()            
             manager.run()
         except KeyboardInterrupt:
             # Catch this so we don't spit out unwanted errors in the log
