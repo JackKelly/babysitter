@@ -15,7 +15,6 @@ import xml.etree.ElementTree as ET # for XML parsing
 import signal
 import re
 import sys
-import atexit
 import socket
 
 """
@@ -514,7 +513,6 @@ class Manager(object):
         # sig handler for SIGINT for SIGTERM.  This allows us to 
         # clean up even when the code is terminated with kill or killall.
         signal.signal(signal.SIGTERM, signal.default_int_handler)
-        atexit.register(self.shutdown)
         
     def append(self, checker):
         self.checkers.append(checker)
@@ -569,11 +567,6 @@ class Manager(object):
                     self._send_heartbeat("<p>New subdir found so about to restart "
                                          "babysitter. Below are the last stats "
                                          "for the old data subdirectory.</p>\n")
-                    atexit.register(None) # This is required because the likely
-                    # result of raising a NewDataDirError is to del the existing
-                    # Manager instance and start a new Manager instance. If
-                    # we don't unregister self.shutdown() then the old
-                    # manager instance will not be deleted from memory!
                     raise NewDataDirError()
     
             time.sleep(UPDATE_PERIOD)

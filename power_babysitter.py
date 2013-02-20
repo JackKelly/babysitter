@@ -160,13 +160,16 @@ def main():
             manager.run()
         except KeyboardInterrupt:
             # Catch this so we don't spit out unwanted errors in the log
+            manager.shutdown()
             break
         except NewDataDirError:
             log.info("New data directory found. Re-starting babysitter.")
         except:
             log.exception("")
+            manager.shutdown()
             raise
         else:
+            manager.shutdown()
             break
 
 
