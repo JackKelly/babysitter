@@ -774,7 +774,8 @@ class Manager(object):
                               "username and password in email_config.py")
                 raise
             except socket.error as e:
-                if e.errno == socket.errno.ECONNREFUSED: # Connection refused
+                if e.errno in [socket.errno.ETIMEDOUT,
+                               socket.errno.ECONNREFUSED]:
                     log.warn("WARNING: {}, retries left={}".format(str(e),
                                                                    retries))
                 else:
