@@ -431,7 +431,7 @@ def run_commands(commands):
     """
     msg = ""
     for cmd, send_stdout in commands:        
-        msg += "<hr>\n"
+        msg += "<hr/>\n"
         log.info("Attempting to run command {}".format(cmd))
         try:
             p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE,
@@ -585,7 +585,7 @@ class Manager(object):
         msg = additional_html
         msg += self.html()
         msg += run_commands(self.heartbeat.cmds)
-        msg += "<hr>\n"
+        msg += "<hr/>\n"
         self._email_html_file(subject='Babysitter heartbeat', 
                               filename=self.heartbeat.html_file,
                               extra_text=msg)    
@@ -721,7 +721,8 @@ class Manager(object):
             log.info("Not sending email because no SMTP server configured")
             return
                 
-        html = html + "<p>Local IP address: " + str(get_ip_address()) + "</p>\n"    
+        html = (html + "<hr/>\n<p>Local IP address: " + 
+                str(get_ip_address()) + "</p>\n")    
             
         hostname = os.uname()[1]
         me = hostname + '<' + self.EMAIL_FROM + '>'
