@@ -144,7 +144,7 @@ def _set_config(manager):
 
 def main():
     init_logger()
-    log.debug('MAIN: babysitter.py starting up. Unixtime = {:.0f}'
+    log.debug('\nMAIN: babysitter.py starting up. Unixtime = {:.0f}'
                   .format(time.time()))
 
     while True:
