@@ -679,9 +679,14 @@ class Manager(object):
             String containing highest number subdir.
         """
         existing_subdirs = os.walk(self.base_data_dir).next()[1]
-        if existing_subdirs:
-            existing_subdirs.sort()
-            return existing_subdirs[-1]
+        
+        # Remove any subdirs which contain alphabetic characters
+        numeric_subdirs = [subdir for subdir in existing_subdirs 
+                           if not any(char.isalpha() for char in subdir)]
+
+        if numeric_subdirs:
+            numeric_subdirs.sort()
+            return numeric_subdirs[-1]
         
         
     def _email_html_file(self, subject, filename, extra_text=""):
@@ -694,7 +699,7 @@ class Manager(object):
             log.warn("Failed to open filename {}".format(filename))
             extra_text += ("<p><span style=\"color:red\">Failed to open "
                            "filename {}</span></p>".format(filename))
-            self.send_email(subject, extra_text)
+            self.send_email(subject, extra_text) 
             return
         
         # Extract images
