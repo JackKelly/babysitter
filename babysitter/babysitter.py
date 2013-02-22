@@ -565,7 +565,7 @@ class Manager(object):
 
             # Check if a new data subdir has been created
             if self.base_data_dir and self.sub_data_dir:
-                if self._find_last_subdir() != self.sub_data_dir:
+                if self._find_last_numeric_subdir() != self.sub_data_dir:
                     self._send_heartbeat("<p>New subdir found so about to restart "
                                          "babysitter. Below are the last stats "
                                          "for the old data subdirectory.</p>\n")
@@ -630,7 +630,7 @@ class Manager(object):
         
         # process numeric_subdirs
         if numeric_subdirs:
-            self.sub_data_dir = self._find_last_subdir()
+            self.sub_data_dir = self._find_last_numeric_subdir()
                 
         full_data_dir = self.base_data_dir
         if self.sub_data_dir:
@@ -672,7 +672,7 @@ class Manager(object):
 
         return full_data_dir
     
-    def _find_last_subdir(self):
+    def _find_last_numeric_subdir(self):
         """Find the highest number self.base_data_dir
         
         Returns:
