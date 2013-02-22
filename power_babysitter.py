@@ -173,12 +173,16 @@ def main():
             manager.run()
         except KeyboardInterrupt:
             # Catch this so we don't spit out unwanted errors in the log
+            manager.shutdown_reason = "KeyboardInterrupt or SIGINT signal received"
+            log.info(manager.shutdown_reason)
             manager.shutdown()
             break
         except NewDataDirError:
             log.info("New data directory found. Re-starting babysitter.")
-        except:
+        except Exception, e:
             log.exception("")
+            manager.shutdown_reason = "EXCEPTION: " + str(e)
+            log.info(manager.shutdown_reason)
             manager.shutdown()
             raise
         else:
