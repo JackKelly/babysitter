@@ -613,7 +613,8 @@ class Manager(object):
         
         # Instantiate base_data_dir
         if not directory:
-            log.critical("Directory for power data not set".format(directory))
+            self.shutdown_reason = "Directory for power data not set".format(directory)
+            self.shutdown()
             sys.exit(1)
 
         self.base_data_dir = os.path.realpath(directory)
@@ -625,7 +626,8 @@ class Manager(object):
 
         # Check if the directory exists.
         if not os.path.isdir(self.base_data_dir):
-            log.critical("Failed to open directory {}!".format(self.base_data_dir))
+            self.shutdown_reason = "Failed to open directory {}!".format(self.base_data_dir) 
+            self.shutdown()
             sys.exit(1)
         
         # process numeric_subdirs
@@ -645,7 +647,7 @@ class Manager(object):
             labels_file = open(labels_filename)
         except IOError: # file not found
             self.shutdown_reason = "Failed to open " + labels_filename
-            log.critical(self.shutdown_reason)
+            self.shutdown()
             sys.exit(1)
             
         lines = labels_file.readlines()
@@ -814,6 +816,7 @@ class Manager(object):
             log.info("Sending shutdown email...")
             html = "<p>Babysitter SHUTTING DOWN.</p>\n"
             if self.shutdown_reason:
+                log.info("Shutdown reason: {}".format(self.shutdown_reason))
                 html += "<p>Reason for shutdown: "
                 html += self.shutdown_reason + "</p>\n"
             html += self.html()
