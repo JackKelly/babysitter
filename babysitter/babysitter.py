@@ -823,6 +823,6 @@ class Manager(object):
             html += run_commands(self.state_change_cmds)
             html += run_commands(self.shutdown_cmds)
             self.send_email_with_time(html=html, subject="babysitter.py shutting down")
-        log.info("Shutting down!")
+        log.info("Shutting down!\n")
         logging.shutdown() 
                   
