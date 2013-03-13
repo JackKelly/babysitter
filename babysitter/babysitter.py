@@ -587,7 +587,6 @@ class Manager(object):
         msg = additional_html
         msg += self.html()
         msg += run_commands(self.heartbeat.cmds)
-        time.sleep(5) # make sure files finish saving 
         msg += "<hr/>\n"
         self._email_html_file(subject='Babysitter heartbeat', 
                               filename=self.heartbeat.html_file,
