@@ -698,10 +698,11 @@ class Manager(object):
         # all images and modify the src to include "cid:"
         try:
             tree = ET.parse(filename)
-        except:
-            log.warn("Failed to open filename {}".format(filename))
-            extra_text += ("<p><span style=\"color:red\">Failed to open "
-                           "filename {}</span></p>".format(filename))
+        except Exception as e:
+            msg = ("Failed to open filename {}; exception = '{}'"
+                   .format(filename, str(e)))
+            log.warn(msg)
+            extra_text += "<p><span style=\"color:red\">" + msg + "</span></p>"
             self.send_email(subject, extra_text) 
             return
         
