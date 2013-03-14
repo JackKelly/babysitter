@@ -12,10 +12,12 @@ from email.mime.multipart import MIMEMultipart
 from email.utils import formatdate
 from abc import ABCMeta, abstractmethod
 import xml.etree.ElementTree as ET # for XML parsing
+import HTMLParser
 import signal
 import re
 import sys
 import socket
+import cgi
 
 """
 ***********************************
@@ -105,9 +107,10 @@ class Checker:
         return html_to_text(self.html())
 
     def html(self):
-        return '{}={}{}'.format(self.name.rpartition('/')[2], # remove path
+        html = '{}={}{}'.format(self.name.rpartition('/')[2], # remove path
                                 self.state_as_html(),
                                 self.extra_text())
+        return escape(html)
 
 class MaxRetriesError(Exception):
     """We have attempted to restart too many times."""
@@ -373,6 +376,14 @@ def html_to_text(html):
     # but ET doesn't format tables the way I'd
     # like them to be formatted.
     
+    if html is None:
+        return
+    
+    # Unescape HTML entities e.g. map '&lt;' to '<'
+    # from http://stackoverflow.com/a/12614706/732596
+    h = HTMLParser.HTMLParser()
+    html = h.unescape(html)
+    
     # Remove all unwanted white space
     html = re.sub(r'^( )*', '', html, flags=re.MULTILINE)
     html = re.sub(r'( )*$', '', html, flags=re.MULTILINE)
@@ -405,9 +416,19 @@ def html_to_text(html):
     return html
 
 
+def escape(text):
+    """Escape ascii characters for HTML. e.g. convert '<' to '&lt;'"""
+    if text is None:
+        return
+    else:
+        return cgi.escape(text).encode('ascii', 'xmlcharrefreplace')
+
+
 def text_to_html(text):
-    html = "<p>" + text.replace("\n", "</p>\n<p>") + "</p"
-    return html
+    if text is None:
+        return
+    else:
+        return "<p>" + escape(text).replace("\n", "</p>\n<p>") + "</p"
 
 
 def run_commands(commands):
@@ -438,17 +459,18 @@ def run_commands(commands):
             p.wait()
         except Exception:
             m = ("<h2 style=\"color:red\">Failed to run <code>{}</code></h2>\n"
-                 .format(cmd))
+                 .format(escape(cmd)))
             msg += m
             log.exception(html_to_text(m).strip())
         else:
             if p.returncode == 0:
-                m = "<h2>Successfully ran <code>{}</code></h2>\n".format(cmd)
+                m = ("<h2>Successfully ran <code>{}</code></h2>\n"
+                     .format(escape(cmd)))
                 msg += m
                 log.info(html_to_text(m).strip())
             else:
                 m = ("<h2 style=\"color:red\">Failed to run <code>{}</code>"
-                     "</h2>\n".format(cmd))
+                     "</h2>\n".format(escape(cmd)))
                 msg += m
                 log.warn(html_to_text(m).strip())
 
@@ -456,11 +478,13 @@ def run_commands(commands):
             stdout = p.stdout.read()                
             
             if (send_stdout or stderr) and stdout:
-                msg += "<h3>stdout</h3>\n <pre>{}</pre>\n".format(stdout)
+                msg += ("<h3>stdout</h3>\n <pre>{}</pre>\n"
+                        .format(escape(stdout)))
                 
             if stderr:
                 msg += "<h3 style=\"color:red\">stderr</h3>\n"
-                msg += "<pre style=\"color:red\">{}</pre>\n".format(stderr)
+                msg += ("<pre style=\"color:red\">{}</pre>\n"
+                        .format(escape(stderr)))
 
     return msg
 
@@ -539,26 +563,31 @@ class Manager(object):
             html = ""
             for checker in self.checkers:
                 if checker.just_changed_state():
-                    log.warn("Checker {} has changed state.".format(checker.name))
+                    log.warn("Checker {} has changed state."
+                             .format(checker.name))
                     html += "<li>" + checker.html() + "</li>\n"
                     
                 if isinstance(checker, Process) and checker.state() == FAIL:
-                    log.warn("Process {} is not running.".format(checker.name))
-                    html += "<li>Attempting to restart " + checker.name + "...</li>\n"
+                    log.warn("Process {} is not running."
+                             .format(checker.name))
+                    html += ("<li>Attempting to restart " + 
+                             escape(checker.name) + "...</li>\n")
                     try:
                         checker.restart()
                     except MaxRetriesError, e:
                         self.shutdown_reason = str(e)
                         return
                     time.sleep(5)
-                    html += "<li>State after restart: " + checker.html() + "</li>\n"
+                    html += ("<li>State after restart: " + 
+                             checker.html() + "</li>\n")
 
             if html:
                 html = "<h2>STATE CHANGED:</h2>\n<ul>\n" + html + "</ul>\n" 
                 html += self.html()
                 html += run_commands(self.state_change_cmds)
                 self.send_email_with_time(html=html,
-                                          subject="Babysitter detected state change.")
+                                          subject="Babysitter detected"
+                                                  " state change.")
 
             if self._need_to_send_heartbeat():
                 self._send_heartbeat()
@@ -645,8 +674,9 @@ class Manager(object):
         log.info("Opening {} file".format(labels_filename))
         try:
             labels_file = open(labels_filename)
-        except IOError: # file not found
-            self.shutdown_reason = "Failed to open " + labels_filename
+        except IOError as e: # file not found
+            self.shutdown_reason = ("Failed to open " + labels_filename +
+                                    " " + str(e))
             self.shutdown()
             sys.exit(1)
             
