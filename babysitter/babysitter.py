@@ -107,10 +107,10 @@ class Checker:
         return html_to_text(self.html())
 
     def html(self):
-        html = '{}={}{}'.format(self.name.rpartition('/')[2], # remove path
+        html = '{}={}{}'.format(escape(self.name.rpartition('/')[2]), # remove path
                                 self.state_as_html(),
-                                self.extra_text())
-        return escape(html)
+                                escape(self.extra_text()))
+        return html
 
 class MaxRetriesError(Exception):
     """We have attempted to restart too many times."""
@@ -422,13 +422,6 @@ def escape(text):
         return
     else:
         return cgi.escape(text).encode('ascii', 'xmlcharrefreplace')
-
-
-def text_to_html(text):
-    if text is None:
-        return
-    else:
-        return "<p>" + escape(text).replace("\n", "</p>\n<p>") + "</p"
 
 
 def run_commands(commands):
