@@ -75,13 +75,13 @@ def _set_config(manager):
     # manager.append(File(name="/path/to/file", timeout=120))
         
     ########### SET DATA_DIR ###############################################
-    data_dir = os.environ.get("DATA_DIR")
-    if not data_dir:
+    base_data_dir = os.environ.get("DATA_DIR")
+    if not base_data_dir:
         log.critical("You must set the DATA_DIR environment variable")
         sys.exit(1)
         
     ########### DISK SPACE CHECKER ######################################
-    manager.append(DiskSpaceRemaining(threshold=200, path=data_dir))
+    manager.append(DiskSpaceRemaining(threshold=200, path=base_data_dir))
 
     ########### PROCESSES ###############################################
     # Each process will be monitored.  If it dies then babysitter will attempt
@@ -117,7 +117,7 @@ def _set_config(manager):
 
     ########### LOAD POWER DATA ########################################
     
-    data_dir = manager.load_powerdata(directory=data_dir,
+    data_dir = manager.load_powerdata(directory=base_data_dir,
                                       numeric_subdirs=True,
                                       timeout=500)
     
@@ -140,8 +140,9 @@ def _set_config(manager):
     # is looking at.  Especially important if babysitter spots a new data
     # subdir whilst running.
     manager.heartbeat.cmds.append((logger_base_dir +
-                      "/powerstats/powerstats/powerstats.py "
-                      "--data-dir " + data_dir + " --html --cache",
+                      "/powerstats/powerstats/powerstats.py"
+                      " --data-dir " + data_dir + " --html --cache"
+                      " --high-freq-data-dir " + base_data_dir + "/high-freq-data",
                       True)) # second argument switches output of stdout
     
     manager.heartbeat.html_file = (data_dir + "/html/index.html")
