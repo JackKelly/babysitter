@@ -142,7 +142,7 @@ def _set_config(manager):
     manager.heartbeat.cmds.append((logger_base_dir +
                       "/powerstats/powerstats/powerstats.py"
                       " --data-dir " + data_dir + " --html --cache"
-                      " --high-freq-data-dir " + base_data_dir + "/high-freq-data",
+                      " --high-freq-data-dir " + base_data_dir + "/high-freq-mains",
                       True)) # second argument switches output of stdout
     
     manager.heartbeat.html_file = (data_dir + "/html/index.html")
