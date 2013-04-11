@@ -3,7 +3,7 @@ from __future__ import print_function, division
 import logging.handlers
 log = logging.getLogger("babysitter")
 import os
-from babysitter import Manager, DiskSpaceRemaining, Process, NewDataDirError
+from babysitter import Manager, DiskSpaceRemaining, Process, NewDataDirError, File
 import time
 import sys
 import email_config
@@ -108,6 +108,14 @@ def _set_config(manager):
         manager.append(Process(name='record.py', 
                                restart_command='nohup ' + logger_base_dir +
                                '/snd_card_power_meter/scripts/record.py'))
+        
+        scpm_dat_dir = base_data_dir + '/high-freq-mains'
+        scpm_datfiles = os.listdir(scpm_dat_dir)
+        scpm_datfiles = [f for f in scpm_datfiles 
+                         if f.startswith('mains-') and f.endswith('.dat')]
+        scpm_datfiles.sort()
+        last_datfile = os.path.join(scpm_dat_dir, scpm_datfiles[-1])
+        manager.append(File(last_datfile))
 
     ########### FILEGROWS ###############################################
     # manager.append(FileGrows("cron.log"))
@@ -121,8 +129,9 @@ def _set_config(manager):
     
     ########### COMMANDS TO RUN AT SHUTDOWN ############################
     manager.shutdown_cmds.append(
-                       ("tail -n 50 " + os.path.dirname(__file__) + "/babysitter.log",
-                        True))
+                 ("tail -n 50 " + 
+                  os.path.join(os.path.dirname(__file__), "babysitter.log"),
+                  True))
 
     ########### LOAD POWER DATA ########################################
     data_dir = manager.load_powerdata(directory=base_data_dir,
