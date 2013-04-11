@@ -628,7 +628,7 @@ class Manager(object):
             - numeric_subdirs (bool)
             
             - timeout (int)
-        
+
         Returns the full data directory
         """
                 
@@ -636,7 +636,8 @@ class Manager(object):
         
         # Instantiate base_data_dir
         if not directory:
-            self.shutdown_reason = "Directory for power data not set".format(directory)
+            self.shutdown_reason = ("Directory for power data not set"
+                                    .format(directory))
             self.shutdown()
             sys.exit(1)
 
@@ -649,7 +650,8 @@ class Manager(object):
 
         # Check if the directory exists.
         if not os.path.isdir(self.base_data_dir):
-            self.shutdown_reason = "Failed to open directory {}!".format(self.base_data_dir) 
+            self.shutdown_reason = ("Failed to open directory {}!"
+                                    .format(self.base_data_dir)) 
             self.shutdown()
             sys.exit(1)
         

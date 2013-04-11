@@ -81,7 +81,7 @@ def _set_config(manager):
         sys.exit(1)
         
     ########### DISK SPACE CHECKER ######################################
-    manager.append(DiskSpaceRemaining(threshold=200, path=base_data_dir))
+    manager.append(DiskSpaceRemaining(threshold=5000, path=base_data_dir))
 
     ########### PROCESSES ###############################################
     # Each process will be monitored.  If it dies then babysitter will attempt
@@ -95,10 +95,19 @@ def _set_config(manager):
     logger_base_dir = os.path.realpath(logger_base_dir)
     
     restart_command = ("nohup " + logger_base_dir + 
-                       "/rfm_ecomanager_logger/rfm_ecomanager_logger/rfm_ecomanager_logger.py")
+                       "/rfm_ecomanager_logger/rfm_ecomanager_logger/"
+                       "rfm_ecomanager_logger.py")
     
     manager.append(Process(name="rfm_ecomanager_logger.py",
                         restart_command=restart_command))
+    
+    # Check if /flac directory exists.  If it does then snd_card_power_meter
+    # is assumed to be installed.
+    scpm_is_installed = os.path.exists('/flac')
+    if scpm_is_installed:
+        manager.append(Process(name='record.py', 
+                               restart_command='nohup ' + logger_base_dir +
+                               '/snd_card_power_meter/scripts/record.py'))
 
     ########### FILEGROWS ###############################################
     # manager.append(FileGrows("cron.log"))
@@ -113,18 +122,22 @@ def _set_config(manager):
     ########### COMMANDS TO RUN AT SHUTDOWN ############################
     manager.shutdown_cmds.append(
                        ("tail -n 50 " + os.path.dirname(__file__) + "/babysitter.log",
-                          True))
+                        True))
 
     ########### LOAD POWER DATA ########################################
-    
     data_dir = manager.load_powerdata(directory=base_data_dir,
                                       numeric_subdirs=True,
-                                      timeout=500)
+                                      timeout=500,
+                                      scpm_is_installed=scpm_is_installed)
     
     ########### HEARTBEAT ###############################################
     manager.heartbeat.hour = 6 # Hour of each day to send heartbeat (24hr clock)
         
     manager.heartbeat.cmds.append(rfm_ecomanager_logger_log_cmd)
+    
+    if scpm_is_installed:
+        manager.heartbeat.cmds.append(('tail -n 75 ' + logger_base_dir + 
+                                       '/snd_card_power_meter/scpm.log', True))
     
     rsync_cron = logger_base_dir + "/rsync/rsync_cron.log" 
     manager.heartbeat.cmds.append(("tail -n 75 " + rsync_cron, True))
