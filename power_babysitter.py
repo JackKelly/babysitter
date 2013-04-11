@@ -127,8 +127,7 @@ def _set_config(manager):
     ########### LOAD POWER DATA ########################################
     data_dir = manager.load_powerdata(directory=base_data_dir,
                                       numeric_subdirs=True,
-                                      timeout=500,
-                                      scpm_is_installed=scpm_is_installed)
+                                      timeout=500)
     
     ########### HEARTBEAT ###############################################
     manager.heartbeat.hour = 6 # Hour of each day to send heartbeat (24hr clock)
