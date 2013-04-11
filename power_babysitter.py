@@ -1,9 +1,9 @@
 #! /usr/bin/python
 from __future__ import print_function, division
-import logging, logging.handlers
+import logging.handlers
 log = logging.getLogger("babysitter")
 import os
-from babysitter import Manager, DiskSpaceRemaining, Process, FileGrows, File, NewDataDirError
+from babysitter import Manager, DiskSpaceRemaining, Process, NewDataDirError
 import time
 import sys
 import email_config
