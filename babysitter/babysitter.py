@@ -331,7 +331,7 @@ class DiskSpaceRemaining(Checker):
         self.threshold = int(threshold)
         self.path = path
         self.initial_space_remaining = self.available_space()
-        self.initial_time = datetime.datetime.now()
+        self.initial_time = datetime.datetime.utcnow()
         super(DiskSpaceRemaining, self).__init__('disk space')
         
     def state(self):
@@ -346,13 +346,14 @@ class DiskSpaceRemaining(Checker):
     def space_decay_rate(self):
         """Returns rate at which space is diminishing in MByte per second.
         -ve denotes decreasing disk space."""
-        dt = (datetime.datetime.now() - self.initial_time).total_seconds() # delta t
+        dt = (datetime.datetime.utcnow() - self.initial_time).total_seconds() # delta t
         ds = self.available_space() - self.initial_space_remaining # delta space
         return ds / dt
     
     def time_until_full(self):
         """Returns time delta object for time until disk is full."""
-        if ((datetime.datetime.now() - self.initial_time).total_seconds() > UPDATE_PERIOD
+        if ((datetime.datetime.utcnow() - self.initial_time).total_seconds() 
+            > UPDATE_PERIOD
             and self.space_decay_rate() < 0):
             secs_until_full = self.available_space() / -self.space_decay_rate() 
             return datetime.timedelta(seconds=secs_until_full)
@@ -501,7 +502,7 @@ class HeartBeat(object):
         self.hour = None
         self.cmds = [] # list of commands
         self.html_file = None
-        self.last_checked = datetime.datetime.now().hour
+        self.last_checked = datetime.datetime.utcnow().hour
 
 
 class NewDataDirError(Exception):
@@ -599,9 +600,9 @@ class Manager(object):
         if not self.heartbeat:
             return False
         
-        now_hour = datetime.datetime.now().hour
+        now_hour = datetime.datetime.utcnow().hour
         need_to_send = (now_hour == self.heartbeat.hour and
-                self.heartbeat.last_checked != self.heartbeat.hour)
+                        self.heartbeat.last_checked != self.heartbeat.hour)
         self.heartbeat.last_checked = now_hour
         return need_to_send
     
