@@ -151,7 +151,16 @@ class Process(Checker):
         super(Process, self).__init__(name)
 
     def pid(self):
-        pid_string = subprocess.check_output(['pidof', '-x', self.name])
+        MAX_RETRIES = 5
+        for _ in range(MAX_RETRIES):
+            try:
+                pid_string = subprocess.check_output(['pidof', '-x', self.name])
+            except OSError as e:
+                # Very occasionally we get a [Errno 12] Cannot allocate memory
+                log.warn(str(e))
+                time.sleep(1)
+            else:
+                break
         return pid_string.strip()
 
     def restart(self):
