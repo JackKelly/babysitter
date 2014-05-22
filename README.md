@@ -9,3 +9,4 @@ Also see `power_babysitter.py` for a working example of how to use the babysitte
 and to produce graphs using [`powerstats`](https://github.com/JackKelly/powerstats).
 
 An alternative would be the [Supervisor](http://supervisord.org/) project.
+  
